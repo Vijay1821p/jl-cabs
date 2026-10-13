@@ -2,5 +2,8 @@
   "buildCommand": "npm run build -w client",
   "outputDirectory": "client/dist",
   "framework": "vite",
-  "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://jayalakshmi-cabs-api.onrender.com/api/:path*" },
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+  ]
 }

@@ -17,8 +17,20 @@ const razorpayKey = process.env.RAZORPAY_KEY_ID || "";
 const razorpaySecret = process.env.RAZORPAY_KEY_SECRET || "";
 const origins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
   .split(",")
-  .map((s) => s.trim())
+  .map((s) => s.trim().replace(/\/$/, ""))
   .filter(Boolean);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  const extra = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://jl-cabs.vercel.app",
+    "https://jlcabs.com",
+    "https://www.jlcabs.com",
+  ];
+  return origins.includes(origin) || extra.includes(origin) || /\.vercel\.app$/.test(origin);
+}
 
 const phone = z.string().trim().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit mobile number");
 const bookingInput = z.object({
@@ -171,8 +183,16 @@ function requireAdmin(req, res, next) {
 
 const app = express();
 app.set("trust proxy", 1);
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: origins, credentials: false }));
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
+app.use(cors({
+  origin(origin, callback) {
+    callback(null, isAllowedOrigin(origin));
+  },
+  credentials: false,
+}));
 app.use(express.json({ limit: "100kb" }));
 
 const writeLimit = rateLimit({ windowMs: 15 * 60_000, limit: 40, standardHeaders: "draft-8", legacyHeaders: false });
