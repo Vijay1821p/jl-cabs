@@ -118,6 +118,9 @@ input:focus, select:focus, textarea:focus { outline: 3px solid #d9f0e3; border-c
   accent-color: var(--green);
 }
 .summary { position: sticky; top: 84px; }
+@media (max-width: 860px) {
+  .book-layout .summary { order: -1; }
+}
 .line { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
 .total { display: flex; justify-content: space-between; font-size: 22px; font-weight: 700; margin-top: 12px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }

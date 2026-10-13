@@ -4,6 +4,7 @@ import { BOOK_TRIPS, CHARGES, LOCAL_PACKAGES, OUTSTATION_PACKAGES, TARIFF_TERMS,
 import { api } from "../api.js";
 import MapPick from "../components/MapPick.jsx";
 import OfferBanner from "../components/OfferBanner.jsx";
+import { readSearchDraft } from "../searchDraft.js";
 import { useSite } from "../site.jsx";
 import { useTitle } from "../useTitle.js";
 
@@ -37,25 +38,25 @@ function today() {
 }
 
 function formFromParams(params) {
-  let saved = {};
-  try { saved = JSON.parse(sessionStorage.getItem("jc_search") || "{}"); } catch { saved = {}; }
-  const trip = params.get("trip") || saved.trip;
-  const vehicle = params.get("vehicle") || saved.vehicle;
+  const search = params && typeof params.get === "function" ? params : new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const saved = readSearchDraft();
+  const trip = search.get("trip") || saved.trip;
+  const vehicle = search.get("vehicle") || saved.vehicle;
   const fromOutstation = trip === "outstation";
-  const pack = params.get("package") || saved.package_kind;
+  const pack = search.get("package") || saved.package_kind;
   const packageKind = fromOutstation || pack === "outstation" ? "outstation" : "local";
-  const hoursFromUrl = Number(params.get("hours") || saved.hours || 0);
+  const hoursFromUrl = Number(search.get("hours") || saved.hours || 0);
   return {
     ...empty,
     trip_type: fromOutstation ? "hourly" : ["one_way", "round", "hourly"].includes(trip) ? trip : "one_way",
     package_kind: packageKind,
     hours: hoursFromUrl || (packageKind === "outstation" ? 6 : empty.hours),
     vehicle_type: bookVehicleId(vehicle),
-    pickup: params.get("pickup") || saved.pickup || "",
-    drop_location: params.get("drop") || saved.drop || "",
-    trip_date: params.get("date") || saved.date || "",
-    trip_time: params.get("time") || saved.time || "",
-    days: Math.min(30, Math.max(1, Number(params.get("days") || saved.days || 1))),
+    pickup: search.get("pickup") || saved.pickup || "",
+    drop_location: search.get("drop") || search.get("drop_location") || saved.drop || saved.drop_location || "",
+    trip_date: search.get("date") || saved.date || "",
+    trip_time: search.get("time") || saved.time || "",
+    days: Math.min(30, Math.max(1, Number(search.get("days") || saved.days || 1))),
   };
 }
 
@@ -64,16 +65,17 @@ export default function Book() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const search = params.toString();
-  const [form, setForm] = useState(() => formFromParams(params));
+  const [form, setForm] = useState(() => formFromParams(new URLSearchParams(typeof window !== "undefined" ? window.location.search : search)));
 
   useEffect(() => {
-    const next = formFromParams(new URLSearchParams(search));
+    const next = formFromParams(new URLSearchParams(search || window.location.search));
+    if (!next.pickup && !next.drop_location && !next.trip_date) return;
     setForm((current) => ({
       ...current,
-      trip_type: next.trip_type,
-      package_kind: next.package_kind,
+      trip_type: next.trip_type || current.trip_type,
+      package_kind: next.package_kind || current.package_kind,
       hours: next.hours || current.hours,
-      vehicle_type: next.vehicle_type,
+      vehicle_type: next.vehicle_type || current.vehicle_type,
       pickup: next.pickup || current.pickup,
       drop_location: next.drop_location || current.drop_location,
       trip_date: next.trip_date || current.trip_date,
@@ -147,7 +149,7 @@ export default function Book() {
         .finally(() => setQuoting(false));
     }, 500);
     return () => clearTimeout(timer);
-  }, [form.pickup, form.drop_location, form.trip_type, form.package_kind, form.vehicle_type, form.hours, form.days, form.trip_time]);
+  }, [form.pickup, form.drop_location, form.trip_type, form.package_kind, form.vehicle_type, form.hours, form.days, form.trip_time, form.trip_date]);
 
   function validate() {
     const next = {};
@@ -182,7 +184,7 @@ export default function Book() {
         <p className="kicker">Booking</p>
         <h1>Book your cab</h1>
         <OfferBanner tripDate={form.trip_date} />
-        <form className="grid two" style={{ marginTop: 20 }} onSubmit={continueToPay}>
+        <form className="grid two book-layout" style={{ marginTop: 20 }} onSubmit={continueToPay}>
           <div className="card" style={{ display: "grid", gap: 14 }}>
             <div className="chips">
               {BOOK_TRIPS.map((trip) => (
@@ -195,8 +197,6 @@ export default function Book() {
               ))}
               <button type="button" className={form.vehicle_type === "request" ? "chip on" : "chip"} onClick={() => set("vehicle_type", "request")}>Request a vehicle</button>
             </div>
-            <label>Customer name<input value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} />{errors.customer_name && <span className="error">{errors.customer_name}</span>}</label>
-            <label>Mobile number<input inputMode="numeric" maxLength={10} value={form.mobile} onChange={(e) => set("mobile", e.target.value.replace(/\D/g, ""))} />{errors.mobile && <span className="error">{errors.mobile}</span>}</label>
             <label>Pickup location
               <span className="place-field">
                 <input value={form.pickup} placeholder="Your pickup location" onChange={(e) => set("pickup", e.target.value)} />
@@ -257,6 +257,9 @@ export default function Book() {
                 )}
               </>
             )}
+            <p className="muted">Trip details from the home page are kept here. Add your name and mobile to continue.</p>
+            <label>Customer name<input value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} />{errors.customer_name && <span className="error">{errors.customer_name}</span>}</label>
+            <label>Mobile number<input inputMode="numeric" maxLength={10} value={form.mobile} onChange={(e) => set("mobile", e.target.value.replace(/\D/g, ""))} />{errors.mobile && <span className="error">{errors.mobile}</span>}</label>
             <fieldset className="pay-choice">
               <legend>How will you pay?</legend>
               <label className={form.payment_choice === "advance" ? "pay-opt on" : "pay-opt"}>

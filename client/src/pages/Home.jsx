@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { BOOK_TRIPS, EXTRAS, LOCAL_PACKAGES, OUTSTATION_PACKAGES, VEHICLES, formatPhone, greetingWhatsAppUrl, inr, listedVehicles, requestVehicleWhatsAppUrl, tripImageSrc } from "@jc/shared";
 import { api } from "../api.js";
 import MapPick from "../components/MapPick.jsx";
+import { bookQueryFromDraft, saveSearchDraft } from "../searchDraft.js";
 import OfferBanner from "../components/OfferBanner.jsx";
 import { useSite } from "../site.jsx";
 import { useTitle } from "../useTitle.js";
@@ -55,17 +56,19 @@ function QuoteCard() {
       setError("Enter both the pickup and the drop.");
       return;
     }
-    const query = new URLSearchParams({ trip, vehicle, pickup: pickup.trim(), drop: drop.trim() });
-    if (date) query.set("date", date);
-    if (time) query.set("time", time);
-    if (trip === "round") query.set("days", String(days));
-    if (trip === "hourly") {
-      query.set("package", packageKind);
-      query.set("hours", String(hours));
-    }
-    const next = `/book?${query.toString()}`;
-    sessionStorage.setItem("jc_search", JSON.stringify({ trip, vehicle, pickup: pickup.trim(), drop: drop.trim(), date, time, days, package_kind: packageKind, hours }));
-    navigate(next);
+    const draft = {
+      trip,
+      vehicle,
+      pickup: pickup.trim(),
+      drop: drop.trim(),
+      date,
+      time,
+      days,
+      package_kind: packageKind,
+      hours,
+    };
+    saveSearchDraft(draft);
+    navigate(`/book?${bookQueryFromDraft(draft).toString()}`);
   }
 
   return (
