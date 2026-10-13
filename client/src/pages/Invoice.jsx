@@ -31,6 +31,7 @@ export function InvoiceBody({ booking, company }) {
           <strong>{company.name}</strong>
           <span>{company.tagline}</span>
           <span className="inv-address">{company.address}</span>
+          {company.website && <span>{company.website}</span>}
           <span>State: {company.state || "Tamil Nadu"}</span>
           <span>Phone: {formatPhone(company.phone)} · WhatsApp: {formatPhone(company.whatsapp)}</span>
           {showGst && <span>GSTIN: {company.gstin || "To be updated on admin"}</span>}

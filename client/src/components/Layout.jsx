@@ -72,6 +72,7 @@ export default function Layout() {
           </div>
           <div>
             <strong>Contact</strong>
+            <p><a href={company.website || "https://jlcabs.com"}>{(company.website || "https://jlcabs.com").replace(/^https?:\/\//, "")}</a></p>
             <p><a href={`tel:+91${company.phone}`}>{phone}</a></p>
             <p><a href={wa} target="_blank" rel="noreferrer">WhatsApp</a></p>
             <p><a href={`https://instagram.com/${company.instagram}`} target="_blank" rel="noreferrer">@{company.instagram}</a></p>

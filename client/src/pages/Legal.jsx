@@ -51,6 +51,7 @@ export function Privacy() {
       {paras(site.pages.privacy).map((item) => <p key={item}>{item}</p>)}
       <p>Call {phone} if you want a booking record corrected.</p>
       {site.company.address && <p>Office: {site.company.address}</p>}
+      <p>Website: <a href={site.company.website || "https://jlcabs.com"}>{site.company.website || "https://jlcabs.com"}</a></p>
     </div></section>
   );
 }

@@ -184,6 +184,9 @@ export default function Admin() {
               />
             </label>
             <p className="muted">This address appears on the website footer and on invoices. Change it and click Save.</p>
+            <label>Website
+              <input value={rates.company.website || ""} onChange={(e) => setRates({ ...rates, company: { ...rates.company, website: e.target.value.trim() } })} placeholder="https://jlcabs.com" />
+            </label>
             <label>WhatsApp greeting message
               <textarea
                 rows={6}
@@ -305,6 +308,7 @@ export default function Admin() {
               <label>Website phone number<input inputMode="numeric" maxLength={10} value={rates.company.phone} onChange={(e) => setRates({ ...rates, company: { ...rates.company, phone: e.target.value.replace(/\D/g, "").slice(0, 10) } })} /></label>
               <label>Website WhatsApp number<input inputMode="numeric" maxLength={10} value={rates.company.whatsapp} onChange={(e) => setRates({ ...rates, company: { ...rates.company, whatsapp: e.target.value.replace(/\D/g, "").slice(0, 10) } })} /></label>
               <label>Instagram<input value={rates.company.instagram} onChange={(e) => setRates({ ...rates, company: { ...rates.company, instagram: e.target.value } })} /></label>
+              <label>Website<input value={rates.company.website || ""} onChange={(e) => setRates({ ...rates, company: { ...rates.company, website: e.target.value.trim() } })} placeholder="https://jlcabs.com" /></label>
             </div>
             <label>Office address<textarea rows={3} value={rates.company.address || ""} onChange={(e) => setRates({ ...rates, company: { ...rates.company, address: e.target.value } })} placeholder="Street, area, city, pincode" /></label>
             <h3>Home</h3>

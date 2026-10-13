@@ -13,6 +13,7 @@ export const COMPANY = {
   gstEnabled: false,
   gstPercent: 5,
   address: "184, TN HB Colony, Uppilipalayam, Singanallur, Coimbatore 641005",
+  website: "https://jlcabs.com",
   state: "Tamil Nadu",
 };
 
@@ -336,6 +337,7 @@ export function invoiceText(booking, company = COMPANY) {
   lines.push("Toll, parking and permit are extra if they apply.");
   lines.push(`Office: ${formatPhone(company.phone || company.whatsapp)}`);
   if (company.address) lines.push(company.address);
+  if (company.website) lines.push(company.website);
   return lines.join("\n");
 }
 
