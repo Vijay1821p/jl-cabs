@@ -16,7 +16,11 @@ const bookingLabel = { requested: "Requested", confirmed: "Confirmed", completed
 
 export default function Track() {
   const { site } = useSite();
-  useTitle("Track booking", "Check your Jayalakshmi Cabs booking with ID and mobile.");
+  useTitle(
+    "Track Your Cab Booking",
+    "Check a Jayalakshmi Cabs booking with your booking ID and mobile number.",
+    { path: "/track" },
+  );
   const [params, setParams] = useSearchParams();
   const [id, setId] = useState(params.get("booking") || "");
   const [mobile, setMobile] = useState(params.get("mobile") || "");

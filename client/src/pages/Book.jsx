@@ -61,7 +61,11 @@ function formFromParams(params) {
 }
 
 export default function Book() {
-  useTitle("Book a cab", "Enter pickup, drop, date and vehicle to see the fare.");
+  useTitle(
+    "Book a One-Way Taxi or Outstation Cab",
+    "Enter pickup, drop, date and vehicle to see the Jayalakshmi Cabs fare for a one-way taxi, round trip or hourly rental.",
+    { path: "/book" },
+  );
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const search = params.toString();
@@ -182,7 +186,8 @@ export default function Book() {
     <section className="section">
       <div className="wrap">
         <p className="kicker">Booking</p>
-        <h1>Book your cab</h1>
+        <h1>Book a one-way taxi or outstation cab</h1>
+        <p className="lead">Trip details from the home page stay here. The fare appears after pickup and drop are filled.</p>
         <OfferBanner tripDate={form.trip_date} />
         <form className="grid two book-layout" style={{ marginTop: 20 }} onSubmit={continueToPay}>
           <div className="card" style={{ display: "grid", gap: 14 }}>

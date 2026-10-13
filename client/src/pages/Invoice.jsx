@@ -138,7 +138,7 @@ export function InvoiceBody({ booking, company }) {
             : "This is a trip invoice. GST is not applied. Toll, parking and permit are extra if they apply."}
         </p>
         <div className="inv-stamp">
-          <img src="/logo.png?v=2" alt="" />
+          <img src="/logo.png?v=2" alt={company.name} />
           <span>For {company.shortName}</span>
           <em>Authorised office</em>
         </div>
@@ -160,7 +160,7 @@ export async function downloadInvoicePdf(bookingId) {
 }
 
 export default function Invoice() {
-  useTitle("Invoice", "Jayalakshmi Cabs invoice.");
+  useTitle("Invoice", "Jayalakshmi Cabs invoice.", { path: "/invoice", noindex: true });
   const { site } = useSite();
   const [params] = useSearchParams();
   const [booking, setBooking] = useState(null);

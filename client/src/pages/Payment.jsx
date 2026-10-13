@@ -16,7 +16,7 @@ function loadCheckout() {
 }
 
 export default function Payment() {
-  useTitle("Payment", "Pay 25% now or the full fare online.");
+  useTitle("Payment", "Pay 25% now or the full fare online.", { path: "/payment", noindex: true });
   const navigate = useNavigate();
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState("");

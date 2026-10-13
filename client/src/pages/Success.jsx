@@ -7,7 +7,7 @@ import { useSite } from "../site.jsx";
 import { useTitle } from "../useTitle.js";
 
 export default function Success() {
-  useTitle("Invoice", "Your Jayalakshmi Cabs invoice.");
+  useTitle("Invoice", "Your Jayalakshmi Cabs invoice.", { path: "/success", noindex: true });
   const { site } = useSite();
   const [params] = useSearchParams();
   const [booking, setBooking] = useState(null);

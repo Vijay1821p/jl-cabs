@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useSeo } from "./useSeo.js";
 
-export function useTitle(title, description) {
-  useEffect(() => {
-    document.title = `${title} | Jayalakshmi Cabs & Services`;
-    const tag = document.querySelector('meta[name="description"]');
-    if (tag && description) tag.setAttribute("content", description);
-  }, [title, description]);
+export function useTitle(title, description, options = {}) {
+  useSeo({
+    title,
+    description,
+    path: options.path || "/",
+    noindex: Boolean(options.noindex),
+    jsonLd: options.jsonLd || null,
+  });
 }

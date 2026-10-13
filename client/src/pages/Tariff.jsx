@@ -4,7 +4,11 @@ import { useSite } from "../site.jsx";
 import { useTitle } from "../useTitle.js";
 
 export default function Tariff() {
-  useTitle("Tariff", "Drop, round, outstation and local package rates for Jayalakshmi Cabs.");
+  useTitle(
+    "Taxi Tariff in Coimbatore",
+    "Published sedan and MUV tariff for one-way taxi, round trip, outstation packages and local hourly rental with Jayalakshmi Cabs.",
+    { path: "/tariff" },
+  );
   const { site } = useSite();
   const vehicles = listedVehicles(site.vehicles || VEHICLES);
   const requestWa = requestVehicleWhatsAppUrl(site.company);
@@ -16,8 +20,9 @@ export default function Tariff() {
     <section className="section">
       <div className="wrap">
         <p className="kicker">Tariff chart</p>
-        <h1>Tariff</h1>
+        <h1>Taxi tariff</h1>
         <p className="lead">{site.pages.tariffLead}</p>
+        <p className="muted">Sedan and MUV / Ertiga rates for one-way taxi, round trip and outstation packages from Coimbatore.</p>
 
         <article className="card" style={{ marginTop: 22, overflowX: "auto" }}>
           <h2>One-way trip up to 100 km</h2>

@@ -11,7 +11,11 @@ function lines(text) {
 }
 
 export function Terms() {
-  useTitle("Terms & Conditions", "Booking terms for Jayalakshmi Cabs & Services.");
+  useTitle(
+    "Terms & Conditions",
+    "Booking terms, extra charges and luggage rules for Jayalakshmi Cabs taxi bookings.",
+    { path: "/terms" },
+  );
   const { site } = useSite();
   const terms = site.tariffTerms?.length ? site.tariffTerms : TARIFF_TERMS;
   return (
@@ -29,7 +33,11 @@ export function Terms() {
 }
 
 export function Refund() {
-  useTitle("Refund Policy", "Cancellation and refund rules for Jayalakshmi Cabs.");
+  useTitle(
+    "Refund Policy",
+    "Cancellation and refund rules for Jayalakshmi Cabs online taxi payments.",
+    { path: "/refund" },
+  );
   const { site } = useSite();
   return (
     <section className="section"><div className="wrap card">
@@ -42,7 +50,11 @@ export function Refund() {
 }
 
 export function Privacy() {
-  useTitle("Privacy Policy", "How Jayalakshmi Cabs uses booking details.");
+  useTitle(
+    "Privacy Policy",
+    "How Jayalakshmi Cabs stores name, mobile and trip details for cab bookings.",
+    { path: "/privacy" },
+  );
   const { site } = useSite();
   const phone = formatPhone(site.company.phone);
   return (

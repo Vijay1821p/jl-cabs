@@ -7,7 +7,7 @@ import { useTitle } from "../useTitle.js";
 const blankTrip = { from_place: "Dharmapuri", to_place: "", km: "", fare: 0, trip_type: "one_way", image_url: "", sort_order: 0, visible: true };
 
 export default function Admin() {
-  useTitle("Admin", "Jayalakshmi Cabs booking dashboard.");
+  useTitle("Admin", "Jayalakshmi Cabs booking dashboard.", { path: "/admin", noindex: true });
   const [token, setToken] = useState(adminToken.get() || "");
   const [password, setPassword] = useState("");
   const [tab, setTab] = useState("bookings");

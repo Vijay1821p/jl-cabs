@@ -96,8 +96,9 @@ export default function Layout() {
         </div>
         <div className="policy-bar">
           <div className="wrap">
-            <Link to="/#faq">About Us</Link>
+            <Link to="/#services">About Us</Link>
             <Link to="/#faq">FAQs</Link>
+            <Link to="/#contact">Contact</Link>
             <Link to="/terms">Terms</Link>
             <Link to="/privacy">Privacy Policy</Link>
             <Link to="/refund">Cancellation Policy</Link>

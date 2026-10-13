@@ -6,6 +6,7 @@ import MapPick from "../components/MapPick.jsx";
 import { bookQueryFromDraft, saveSearchDraft } from "../searchDraft.js";
 import OfferBanner from "../components/OfferBanner.jsx";
 import { useSite } from "../site.jsx";
+import { taxiServiceJsonLd } from "../useSeo.js";
 import { useTitle } from "../useTitle.js";
 
 const BENEFITS = [
@@ -74,7 +75,7 @@ function QuoteCard() {
   return (
     <form id="quote" className="quote-card" onSubmit={search}>
       <p className="kicker">Get a fare</p>
-      <h2>Search cabs</h2>
+      <h2>Get a taxi fare</h2>
       <div className="chips">
         {BOOK_TRIPS.map((item) => (
           <button type="button" key={item.id} className={trip === item.id ? "chip on" : "chip"} onClick={() => {
@@ -160,7 +161,11 @@ function QuoteCard() {
 }
 
 export default function Home() {
-  useTitle("One Way Taxi", "Book a sedan or MUV for one way, round trip and hourly rental. See the road-distance fare before you pay.");
+  useTitle(
+    "Coimbatore Cab Service",
+    "Jayalakshmi Cabs is a Coimbatore cab service for one-way taxi, round-trip, outstation taxi, airport taxi and hourly rental. Sedan and Ertiga / MUV. See the fare before you pay.",
+    { path: "/", jsonLd: taxiServiceJsonLd() },
+  );
   const { site } = useSite();
   const company = site.company;
   const vehicles = site.vehicles || VEHICLES;
@@ -209,14 +214,14 @@ export default function Home() {
       <section className="section" id="services">
         <div className="wrap">
           <p className="kicker">Services</p>
-          <h2>Trips we run</h2>
+          <h2>One-way taxi, outstation taxi and hourly rental</h2>
           <div className="grid three" style={{ marginTop: 18 }}>
             {BOOK_TRIPS.map((trip) => (
               <Link key={trip.id} className="card service" to={`/book?trip=${trip.id}`}>
                 <h3>{trip.label}</h3>
                 <p>{{
-                  one_way: "Drop taxi. You pay for the distance you travel.",
-                  round: "Go and return. The fare includes the journey back.",
+                  one_way: "One-way taxi and airport taxi. You pay for the road distance you travel.",
+                  round: "Round-trip taxi. The fare includes the journey back.",
                   hourly: "Local or outstation hour packages.",
                 }[trip.id]}</p>
                 <span className="more">Get a fare</span>
@@ -245,7 +250,7 @@ export default function Home() {
       <section className="section tight" id="vehicles">
         <div className="wrap">
           <p className="kicker">Vehicles</p>
-          <h2>Choose the car</h2>
+          <h2>Sedan and Ertiga cab service</h2>
           <div className="grid two" style={{ marginTop: 18 }}>
             {listedVehicles(vehicles).map((vehicle) => (
               <article key={vehicle.id} className="card vehicle">
@@ -314,7 +319,7 @@ export default function Home() {
               </details>
             </div>
           </div>
-          <aside className="card cta-card">
+          <aside className="card cta-card" id="contact">
             <p className="kicker">Need a cab now?</p>
             <h2>Call or WhatsApp</h2>
             <p>{phone}. Tell us the pickup, drop and time. We will share the fare before the car starts.</p>
