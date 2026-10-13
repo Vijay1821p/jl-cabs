@@ -2,8 +2,18 @@
   "buildCommand": "npm run build -w client",
   "outputDirectory": "client/dist",
   "framework": "vite",
+  "headers": [
+    {
+      "source": "/robots.txt",
+      "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [{ "key": "Content-Type", "value": "application/xml; charset=utf-8" }]
+    }
+  ],
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://jayalakshmi-cabs-api.onrender.com/api/:path*" },
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|robots\\.txt|sitemap\\.xml).*)", "destination": "/index.html" }
   ]
 }

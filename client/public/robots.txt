@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /payment
+Disallow: /success
+Disallow: /invoice
+
+Sitemap: https://jlcabs.com/sitemap.xml
