@@ -1,0 +1,9 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: cabs
+      POSTGRES_PASSWORD: cabs
+      POSTGRES_DB: cabs
+    ports:
+      - "5432:5432"
