@@ -49,6 +49,10 @@ const bookingInput = z.object({
   hours: z.coerce.number().int().min(2).max(15).optional(),
   days: z.coerce.number().int().min(1).max(30).optional(),
   payment_choice: z.enum(["advance", "full"]).optional(),
+  pickup_lat: z.coerce.number().finite().optional(),
+  pickup_lng: z.coerce.number().finite().optional(),
+  drop_lat: z.coerce.number().finite().optional(),
+  drop_lng: z.coerce.number().finite().optional(),
 });
 
 function todayIndia() {
@@ -155,7 +159,10 @@ async function priceTrip(input) {
   let km = null;
   let hours = null;
   if (trip.needsRoute) {
-    const route = await roadDistanceKm(input.pickup, input.drop_location);
+    const route = await roadDistanceKm(input.pickup, input.drop_location, {
+      pickup: { lat: input.pickup_lat, lng: input.pickup_lng },
+      drop: { lat: input.drop_lat, lng: input.drop_lng },
+    });
     km = route.km;
   } else {
     hours = input.hours || 2;

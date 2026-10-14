@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BOOK_TRIPS, EXTRAS, LOCAL_PACKAGES, OUTSTATION_PACKAGES, VEHICLES, formatPhone, greetingWhatsAppUrl, inr, listedVehicles, requestVehicleWhatsAppUrl, tripImageSrc } from "@jc/shared";
 import { api } from "../api.js";
+import AddressAutocomplete from "../components/AddressAutocomplete.jsx";
 import MapPick from "../components/MapPick.jsx";
 import { bookQueryFromDraft, saveSearchDraft } from "../searchDraft.js";
 import OfferBanner from "../components/OfferBanner.jsx";
@@ -36,6 +37,8 @@ function QuoteCard() {
   const [vehicle, setVehicle] = useState("sedan");
   const [pickup, setPickup] = useState("");
   const [drop, setDrop] = useState("");
+  const [pickupPoint, setPickupPoint] = useState(null);
+  const [dropPoint, setDropPoint] = useState(null);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [days, setDays] = useState(1);
@@ -62,6 +65,10 @@ function QuoteCard() {
       vehicle,
       pickup: pickup.trim(),
       drop: drop.trim(),
+      pickup_lat: pickupPoint?.lat,
+      pickup_lng: pickupPoint?.lng,
+      drop_lat: dropPoint?.lat,
+      drop_lng: dropPoint?.lng,
       date,
       time,
       days,
@@ -87,26 +94,28 @@ function QuoteCard() {
           }}>{item.label}</button>
         ))}
       </div>
-      <label>Pickup location
-        <span className="place-field">
-          <input value={pickup} placeholder="Your pickup location" onChange={(e) => setPickup(e.target.value)} />
-          <button type="button" className="map-btn" aria-label="Pick your location" onClick={() => setMap("pickup")}>
-            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
-          </button>
-        </span>
-      </label>
-      <label>Drop location
-        <span className="place-field">
-          <input value={drop} placeholder="Your drop location" onChange={(e) => setDrop(e.target.value)} />
-          <button type="button" className="map-btn" aria-label="Pick your location" onClick={() => setMap("drop")}>
-            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
-          </button>
-        </span>
-      </label>
+      <AddressAutocomplete label="Pickup location" value={pickup} point={pickupPoint} onChange={(text, point) => { setPickup(text); setPickupPoint(point || null); }} placeholder="Your pickup location">
+        <button type="button" className="map-btn" aria-label="Pin pickup on the map" onClick={() => setMap("pickup")}>
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
+        </button>
+      </AddressAutocomplete>
+      <AddressAutocomplete label="Drop location" value={drop} point={dropPoint} onChange={(text, point) => { setDrop(text); setDropPoint(point || null); }} placeholder="Your drop location">
+        <button type="button" className="map-btn" aria-label="Pin drop on the map" onClick={() => setMap("drop")}>
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
+        </button>
+      </AddressAutocomplete>
       <MapPick
         open={Boolean(mapMode)}
         mode={mapMode || "pickup"}
-        onPick={(field, name) => { if (field === "pickup") setPickup(name); else setDrop(name); }}
+        onPick={(field, address, point) => {
+          if (field === "pickup") {
+            setPickup(address);
+            setPickupPoint(point);
+          } else {
+            setDrop(address);
+            setDropPoint(point);
+          }
+        }}
         onClose={() => setMap(null)}
       />
       <div className="grid two">

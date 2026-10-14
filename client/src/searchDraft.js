@@ -25,6 +25,10 @@ export function bookQueryFromDraft(draft) {
     query.set("drop", draft.drop);
     query.set("drop_location", draft.drop);
   }
+  for (const key of ["pickup_lat", "pickup_lng", "drop_lat", "drop_lng"]) {
+    const value = Number(draft[key]);
+    if (Number.isFinite(value)) query.set(key, String(value));
+  }
   if (draft.date) query.set("date", draft.date);
   if (draft.time) query.set("time", draft.time);
   if (draft.trip === "round") query.set("days", String(draft.days || 1));

@@ -275,8 +275,29 @@ input:focus, select:focus, textarea:focus { outline: 3px solid #d9f0e3; border-c
 .cta-card p, .cta-card .kicker { color: #e7f3eb; }
 .cta-card h2 { color: white; }
 
-.place-field { display: flex; gap: 8px; align-items: center; }
+.address-block { display: grid; gap: 8px; }
+.place-field { position: relative; display: flex; gap: 8px; align-items: center; }
+.suggest-list {
+  position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 52px;
+  margin: 0; padding: 6px; list-style: none; background: white;
+  border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(20, 36, 27, 0.12); max-height: 260px; overflow: auto;
+}
+.suggest-list button {
+  width: 100%; text-align: left; background: white; border: 0; border-radius: 10px;
+  padding: 8px 10px; cursor: pointer; display: grid; gap: 2px;
+}
+.suggest-list button strong { font-weight: 650; }
+.suggest-list button span { color: var(--muted); font-size: 13px; }
+.suggest-list button.is-on, .suggest-list button:hover { background: #f3f7f4; }
+.map-search { position: relative; }
+.map-search input { width: 100%; }
+.map-search .suggest-list, .map-suggest { right: 0; }
 .place-field input { flex: 1; }
+.place-meta { display: grid; gap: 2px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.place-meta p { margin: 0; }
+.place-meta strong { color: var(--ink); }
+.pac-container { z-index: 60; border-radius: 12px; font-family: Outfit, sans-serif; }
 .map-btn {
   width: 44px; height: 44px; flex: 0 0 44px; border: 1.5px solid var(--line); border-radius: 12px;
   background: white; color: var(--green); display: grid; place-items: center; cursor: pointer;
@@ -292,6 +313,15 @@ input:focus, select:focus, textarea:focus { outline: 3px solid #d9f0e3; border-c
   display: grid; gap: 10px;
 }
 .map-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.map-locate { justify-self: start; padding: 10px 16px; }
+.map-locate:disabled { opacity: 0.7; cursor: wait; }
+.map-my-location {
+  width: 40px; height: 40px; margin: 0 10px 12px 0; padding: 0; border: 0; border-radius: 8px;
+  background: #fff; color: #5f6368; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer; display: grid; place-items: center;
+}
+.map-my-location.is-on { color: #1a73e8; }
+.map-my-location[aria-busy="true"] { cursor: wait; }
 .map-canvas { height: 360px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); }
 .map-pin { background: none; border: 0; }
 .map-pin span {

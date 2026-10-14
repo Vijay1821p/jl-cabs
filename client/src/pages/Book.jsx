@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { BOOK_TRIPS, CHARGES, LOCAL_PACKAGES, OUTSTATION_PACKAGES, TARIFF_TERMS, VEHICLES, amountDueNow, balanceDue, inr, isNightStart, listedVehicles, normalizeTime, normalizeVehicle, requestVehicleWhatsAppUrl, withNightCharge } from "@jc/shared";
 import { api } from "../api.js";
+import AddressAutocomplete from "../components/AddressAutocomplete.jsx";
 import MapPick from "../components/MapPick.jsx";
 import OfferBanner from "../components/OfferBanner.jsx";
 import { readSearchDraft } from "../searchDraft.js";
@@ -60,6 +61,23 @@ function formFromParams(params) {
   };
 }
 
+function pointFromParams(params, kind) {
+  const search = params && typeof params.get === "function" ? params : new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const saved = readSearchDraft();
+  const lat = Number(search.get(`${kind}_lat`) || saved[`${kind}_lat`]);
+  const lng = Number(search.get(`${kind}_lng`) || saved[`${kind}_lng`]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const address = kind === "pickup"
+    ? (search.get("pickup") || saved.pickup || "")
+    : (search.get("drop") || search.get("drop_location") || saved.drop || saved.drop_location || "");
+  return { address, lat, lng };
+}
+
+function quoteCoords(point, prefix) {
+  if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return {};
+  return { [`${prefix}_lat`]: point.lat, [`${prefix}_lng`]: point.lng };
+}
+
 export default function Book() {
   useTitle(
     "Book a One-Way Taxi or Outstation Cab",
@@ -86,12 +104,18 @@ export default function Book() {
       trip_time: next.trip_time || current.trip_time,
       days: next.days || current.days,
     }));
+    const pickupPin = pointFromParams(new URLSearchParams(search || window.location.search), "pickup");
+    const dropPin = pointFromParams(new URLSearchParams(search || window.location.search), "drop");
+    if (pickupPin) setPickupPoint(pickupPin);
+    if (dropPin) setDropPoint(dropPin);
   }, [search]);
   const [errors, setErrors] = useState({});
   const [quote, setQuote] = useState(null);
   const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState("");
   const [mapMode, setMapMode] = useState(null);
+  const [pickupPoint, setPickupPoint] = useState(() => pointFromParams(new URLSearchParams(typeof window !== "undefined" ? window.location.search : ""), "pickup"));
+  const [dropPoint, setDropPoint] = useState(() => pointFromParams(new URLSearchParams(typeof window !== "undefined" ? window.location.search : ""), "drop"));
   const { site } = useSite();
   const vehicles = listedVehicles(site.vehicles || VEHICLES);
   const requestWa = requestVehicleWhatsAppUrl(site.company);
@@ -143,6 +167,8 @@ export default function Book() {
           days: Number(form.days) || 1,
           trip_date: form.trip_date || undefined,
           trip_time: normalizeTime(form.trip_time) || undefined,
+          ...quoteCoords(pickupPoint, "pickup"),
+          ...quoteCoords(dropPoint, "drop"),
         },
       })
         .then((data) => setQuote(data))
@@ -153,7 +179,7 @@ export default function Book() {
         .finally(() => setQuoting(false));
     }, 500);
     return () => clearTimeout(timer);
-  }, [form.pickup, form.drop_location, form.trip_type, form.package_kind, form.vehicle_type, form.hours, form.days, form.trip_time, form.trip_date]);
+  }, [form.pickup, form.drop_location, form.trip_type, form.package_kind, form.vehicle_type, form.hours, form.days, form.trip_time, form.trip_date, pickupPoint, dropPoint]);
 
   function validate() {
     const next = {};
@@ -178,7 +204,13 @@ export default function Book() {
       return;
     }
     if (!validate()) return;
-    sessionStorage.setItem("jc_draft", JSON.stringify({ ...form, trip_type: fareType, quote: shown }));
+    sessionStorage.setItem("jc_draft", JSON.stringify({
+      ...form,
+      trip_type: fareType,
+      quote: shown,
+      ...quoteCoords(pickupPoint, "pickup"),
+      ...quoteCoords(dropPoint, "drop"),
+    }));
     navigate("/payment");
   }
 
@@ -202,25 +234,26 @@ export default function Book() {
               ))}
               <button type="button" className={form.vehicle_type === "request" ? "chip on" : "chip"} onClick={() => set("vehicle_type", "request")}>Request a vehicle</button>
             </div>
-            <label>Pickup location
-              <span className="place-field">
-                <input value={form.pickup} placeholder="Your pickup location" onChange={(e) => set("pickup", e.target.value)} />
-                <button type="button" className="map-btn" aria-label="Pick your location" onClick={() => setMap("pickup")}>
-                  <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
-                </button>
-              </span>
-              {errors.pickup && <span className="error">{errors.pickup}</span>}
-            </label>
-            <label>Drop location
-              <span className="place-field">
-                <input value={form.drop_location} placeholder="Your drop location" onChange={(e) => set("drop_location", e.target.value)} />
-                <button type="button" className="map-btn" aria-label="Pick your location" onClick={() => setMap("drop")}>
-                  <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
-                </button>
-              </span>
-              {errors.drop_location && <span className="error">{errors.drop_location}</span>}
-            </label>
-            <MapPick open={Boolean(mapMode)} mode={mapMode || "pickup"} onPick={set} onClose={() => setMapMode(null)} />
+            <AddressAutocomplete label="Pickup location" value={form.pickup} point={pickupPoint} onChange={(value, point) => { set("pickup", value); setPickupPoint(point || null); }} placeholder="Your pickup location" error={errors.pickup}>
+              <button type="button" className="map-btn" aria-label="Pin pickup on the map" onClick={() => setMap("pickup")}>
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
+              </button>
+            </AddressAutocomplete>
+            <AddressAutocomplete label="Drop location" value={form.drop_location} point={dropPoint} onChange={(value, point) => { set("drop_location", value); setDropPoint(point || null); }} placeholder="Your drop location" error={errors.drop_location}>
+              <button type="button" className="map-btn" aria-label="Pin drop on the map" onClick={() => setMap("drop")}>
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
+              </button>
+            </AddressAutocomplete>
+            <MapPick
+              open={Boolean(mapMode)}
+              mode={mapMode || "pickup"}
+              onPick={(field, address, point) => {
+                set(field, address);
+                if (field === "pickup") setPickupPoint(point);
+                else setDropPoint(point);
+              }}
+              onClose={() => setMapMode(null)}
+            />
             <div className="grid two">
               <label>Date<input type="date" min={today()} value={form.trip_date} onChange={(e) => set("trip_date", e.target.value)} />{errors.trip_date && <span className="error">{errors.trip_date}</span>}</label>
               <label>Time

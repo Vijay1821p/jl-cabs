@@ -20,7 +20,15 @@ async function getJson(url) {
   return response.json();
 }
 
-export async function roadDistanceKm(pickup, drop) {
+function chosenPoint(point) {
+  const lat = Number(point?.lat);
+  const lng = Number(point?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < 6 || lat > 37 || lng < 68 || lng > 98) return null;
+  return { lat, lng };
+}
+
+export async function roadDistanceKm(pickup, drop, points = {}) {
   const find = async (q) => {
     const list = await getJson(
       "https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=in&limit=1&q=" + encodeURIComponent(q)
@@ -29,8 +37,10 @@ export async function roadDistanceKm(pickup, drop) {
     return { lat: Number(list[0].lat), lng: Number(list[0].lon), label: list[0].display_name };
   };
 
-  const from = await find(pickup);
-  const to = await find(drop);
+  const pickedFrom = chosenPoint(points.pickup);
+  const pickedTo = chosenPoint(points.drop);
+  const from = pickedFrom ? { ...pickedFrom, label: pickup } : await find(pickup);
+  const to = pickedTo ? { ...pickedTo, label: drop } : await find(drop);
   const route = await getJson(
     `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`
   );
