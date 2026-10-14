@@ -449,6 +449,18 @@ export function popularRouteKm(from, to) {
   return POPULAR_ROUTES.find((row) => row.from.toLowerCase() === a && row.to.toLowerCase() === b)?.km || null;
 }
 
+/** Match tariff table routes when city names appear in full pickup/drop addresses. */
+export function popularRouteKmFromAddresses(pickup, drop) {
+  const p = String(pickup || "").toLowerCase();
+  const d = String(drop || "").toLowerCase();
+  for (const row of POPULAR_ROUTES) {
+    const from = row.from.toLowerCase();
+    const to = row.to.toLowerCase();
+    if (p.includes(from) && d.includes(to)) return row.km;
+  }
+  return null;
+}
+
 export function listedDropFare(km, vehicleId = "sedan", site) {
   return computeFare({ tripType: "one_way", vehicleId, km, site }).total;
 }

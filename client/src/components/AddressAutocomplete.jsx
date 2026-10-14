@@ -4,6 +4,7 @@ import {
   parseDistrictFromAddress,
   pointWithDistrict,
 } from "../placeAddress.js";
+import { pointAfterAddressEdit } from "../placePoint.js";
 
 function predictionText(prediction, field) {
   const value = prediction?.[field];
@@ -105,8 +106,9 @@ export default function AddressAutocomplete({ label, value, point, onChange, pla
 
   function change(event) {
     const next = event.target.value;
-    onChange(next, null);
-    setSelected(null);
+    const kept = pointAfterAddressEdit(next, selected);
+    setSelected(kept);
+    onChange(next, kept);
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => search(next), 250);
   }

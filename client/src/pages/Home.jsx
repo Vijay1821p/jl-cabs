@@ -4,6 +4,7 @@ import { BOOK_TRIPS, EXTRAS, LOCAL_PACKAGES, OUTSTATION_PACKAGES, VEHICLES, form
 import { api } from "../api.js";
 import AddressAutocomplete from "../components/AddressAutocomplete.jsx";
 import MapPick from "../components/MapPick.jsx";
+import { hasExactPoint } from "../placePoint.js";
 import { bookQueryFromDraft, saveSearchDraft } from "../searchDraft.js";
 import OfferBanner from "../components/OfferBanner.jsx";
 import { useSite } from "../site.jsx";
@@ -58,6 +59,10 @@ function QuoteCard() {
     }
     if (pickup.trim().length < 3 || drop.trim().length < 3) {
       setError("Enter both the pickup and the drop.");
+      return;
+    }
+    if (!hasExactPoint(pickupPoint) || !hasExactPoint(dropPoint)) {
+      setError("Pin pickup and drop on the map, or choose an address from the list, for the correct distance.");
       return;
     }
     const draft = {

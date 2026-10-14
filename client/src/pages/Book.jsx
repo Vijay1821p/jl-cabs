@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { BOOK_TRIPS, CHARGES, LOCAL_PACKAGES, OUTSTATION_PACKAGES, TARIFF_TERMS, VEHICLES, amountDueNow, balanceDue, inr, isNightStart, listedVehicles, normalizeTime, normalizeVehicle, requestVehicleWhatsAppUrl, withNightCharge } from "@jc/shared";
 import { api } from "../api.js";
+import { googleDrivingKm } from "../googleRoutes.js";
 import AddressAutocomplete from "../components/AddressAutocomplete.jsx";
 import MapPick from "../components/MapPick.jsx";
 import OfferBanner from "../components/OfferBanner.jsx";
+import { hasExactPoint } from "../placePoint.js";
 import { readSearchDraft } from "../searchDraft.js";
 import { useSite } from "../site.jsx";
 import { useTitle } from "../useTitle.js";
@@ -104,10 +106,9 @@ export default function Book() {
       trip_time: next.trip_time || current.trip_time,
       days: next.days || current.days,
     }));
-    const pickupPin = pointFromParams(new URLSearchParams(search || window.location.search), "pickup");
-    const dropPin = pointFromParams(new URLSearchParams(search || window.location.search), "drop");
-    if (pickupPin) setPickupPoint(pickupPin);
-    if (dropPin) setDropPoint(dropPin);
+    const params = new URLSearchParams(search || window.location.search);
+    setPickupPoint(pointFromParams(params, "pickup"));
+    setDropPoint(pointFromParams(params, "drop"));
   }, [search]);
   const [errors, setErrors] = useState({});
   const [quote, setQuote] = useState(null);
@@ -153,32 +154,62 @@ export default function Book() {
       return undefined;
     }
     if (form.pickup.trim().length < 3 || form.drop_location.trim().length < 3) return undefined;
+    if (!hasExactPoint(pickupPoint) || !hasExactPoint(dropPoint)) {
+      setQuote(null);
+      setQuoting(false);
+      setQuoteError("Pin pickup and drop on the map, or choose an address from the list, so the fare uses the exact road distance.");
+      return undefined;
+    }
+    let cancelled = false;
     const timer = setTimeout(() => {
       setQuoting(true);
       setQuoteError("");
-      api("/api/quote", {
-        method: "POST",
-        body: {
-          pickup: form.pickup,
-          drop_location: form.drop_location,
-          trip_type: fareType,
-          vehicle_type: normalizeVehicle(form.vehicle_type),
-          hours: Number(form.hours),
-          days: Number(form.days) || 1,
-          trip_date: form.trip_date || undefined,
-          trip_time: normalizeTime(form.trip_time) || undefined,
-          ...quoteCoords(pickupPoint, "pickup"),
-          ...quoteCoords(dropPoint, "drop"),
-        },
-      })
-        .then((data) => setQuote(data))
-        .catch((error) => {
+      (async () => {
+        let driving_km;
+        try {
+          driving_km = await googleDrivingKm(pickupPoint, dropPoint);
+        } catch (error) {
+          if (cancelled) return;
           setQuote(null);
-          setQuoteError(error.message);
+          setQuoteError(error?.message || "Google could not measure the driving distance. Check that Routes API is enabled for your map key.");
+          setQuoting(false);
+          return;
+        }
+        if (cancelled) return;
+        return api("/api/quote", {
+          method: "POST",
+          body: {
+            pickup: form.pickup,
+            drop_location: form.drop_location,
+            trip_type: fareType,
+            vehicle_type: normalizeVehicle(form.vehicle_type),
+            hours: Number(form.hours),
+            days: Number(form.days) || 1,
+            trip_date: form.trip_date || undefined,
+            trip_time: normalizeTime(form.trip_time) || undefined,
+            ...quoteCoords(pickupPoint, "pickup"),
+            ...quoteCoords(dropPoint, "drop"),
+            ...(Number.isFinite(driving_km) ? { driving_km } : {}),
+          },
+        });
+      })()
+        .then((data) => {
+          if (!cancelled && data) setQuote(data);
         })
-        .finally(() => setQuoting(false));
+        .catch((error) => {
+          if (!cancelled) {
+            setQuote(null);
+            setQuoteError(error.message);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setQuoting(false);
+        });
     }, 500);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [form.pickup, form.drop_location, form.trip_type, form.package_kind, form.vehicle_type, form.hours, form.days, form.trip_time, form.trip_date, pickupPoint, dropPoint]);
 
   function validate() {
@@ -210,6 +241,7 @@ export default function Book() {
       quote: shown,
       ...quoteCoords(pickupPoint, "pickup"),
       ...quoteCoords(dropPoint, "drop"),
+      ...(Number.isFinite(quote?.distance_km) ? { driving_km: quote.distance_km } : {}),
     }));
     navigate("/payment");
   }
@@ -234,12 +266,12 @@ export default function Book() {
               ))}
               <button type="button" className={form.vehicle_type === "request" ? "chip on" : "chip"} onClick={() => set("vehicle_type", "request")}>Request a vehicle</button>
             </div>
-            <AddressAutocomplete label="Pickup location" value={form.pickup} point={pickupPoint} onChange={(value, point) => { set("pickup", value); setPickupPoint(point || null); }} placeholder="Your pickup location" error={errors.pickup}>
+            <AddressAutocomplete label="Pickup location" value={form.pickup} point={pickupPoint} showCoordinates={false} onChange={(value, point) => { set("pickup", value); setPickupPoint(point || null); }} placeholder="Your pickup location" error={errors.pickup}>
               <button type="button" className="map-btn" aria-label="Pin pickup on the map" onClick={() => setMap("pickup")}>
                 <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
               </button>
             </AddressAutocomplete>
-            <AddressAutocomplete label="Drop location" value={form.drop_location} point={dropPoint} onChange={(value, point) => { set("drop_location", value); setDropPoint(point || null); }} placeholder="Your drop location" error={errors.drop_location}>
+            <AddressAutocomplete label="Drop location" value={form.drop_location} point={dropPoint} showCoordinates={false} onChange={(value, point) => { set("drop_location", value); setDropPoint(point || null); }} placeholder="Your drop location" error={errors.drop_location}>
               <button type="button" className="map-btn" aria-label="Pin drop on the map" onClick={() => setMap("drop")}>
                 <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
               </button>
