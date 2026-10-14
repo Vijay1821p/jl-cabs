@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { BOOK_TRIPS, CHARGES, LOCAL_PACKAGES, OUTSTATION_PACKAGES, TARIFF_TERMS, VEHICLES, amountDueNow, balanceDue, inr, isNightStart, listedVehicles, normalizeTime, normalizeVehicle, requestVehicleWhatsAppUrl, withNightCharge } from "@jc/shared";
+import { BOOK_TRIPS, CHARGES, LOCAL_PACKAGES, OUTSTATION_PACKAGES, TARIFF_TERMS, VEHICLES, amountDueNow, balanceDue, hillStationChargeAmount, inr, isNightStart, listedVehicles, normalizeTime, normalizeVehicle, packageClass, requestVehicleWhatsAppUrl, tripTouchesHillStation, withHillStationCharge, withNightCharge } from "@jc/shared";
 import { api } from "../api.js";
 import { googleDrivingKm } from "../googleRoutes.js";
 import AddressAutocomplete from "../components/AddressAutocomplete.jsx";
@@ -127,7 +127,21 @@ export default function Book() {
   const hourly = form.trip_type === "hourly";
   const roundTrip = form.trip_type === "round";
   const fareType = hourly && form.package_kind === "outstation" ? "outstation" : form.trip_type;
-  const shown = withNightCharge(quote, fareType, form.trip_time, site);
+  const hillPlaces = {
+    pickup: form.pickup,
+    drop_location: form.drop_location,
+    pickup_lat: pickupPoint?.lat,
+    pickup_lng: pickupPoint?.lng,
+    drop_lat: dropPoint?.lat,
+    drop_lng: dropPoint?.lng,
+  };
+  const hillTrip = tripTouchesHillStation(hillPlaces);
+  const shown = withHillStationCharge(
+    withNightCharge(quote, fareType, form.trip_time, site),
+    form.vehicle_type,
+    site,
+    hillPlaces,
+  );
 
   function setMap(mode) {
     setMapMode(mode);
@@ -276,6 +290,11 @@ export default function Book() {
                 <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
               </button>
             </AddressAutocomplete>
+            {hillTrip && form.vehicle_type !== "request" && (
+              <p className="muted">
+                Hill station charge {inr(hillStationChargeAmount(charges, packageClass(normalizeVehicle(form.vehicle_type))))} is included in the fare estimate (pickup or drop in a hill station).
+              </p>
+            )}
             <MapPick
               open={Boolean(mapMode)}
               mode={mapMode || "pickup"}

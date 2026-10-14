@@ -86,7 +86,17 @@ export const CHARGES = {
   nightCharge: 200,
   nightFrom: 23,
   nightTo: 5,
+  hillStationCharge: { sedan: 300, muv: 500 },
 };
+
+/** Lat/lng boxes for hill-station detection when the customer pins an exact location. */
+export const HILL_STATION_BOUNDS = [
+  { latMin: 11.6, latMax: 11.95, lngMin: 78.05, lngMax: 78.35 }, // Yercaud
+  { latMin: 11.35, latMax: 11.55, lngMin: 76.65, lngMax: 76.85 }, // Ooty / Udhagamandalam
+  { latMin: 10.2, latMax: 10.35, lngMin: 77.45, lngMax: 77.55 }, // Kodaikanal
+  { latMin: 11.3, latMax: 11.55, lngMin: 78.3, lngMax: 78.55 }, // Kolli Hills
+  { latMin: 11.33, latMax: 11.42, lngMin: 76.77, lngMax: 76.85 }, // Coonoor
+];
 
 export const ONE_WAY_SLABS = [
   { upto: 10, sedan: 400, muv: 400, label: "0–10 km" },
@@ -146,6 +156,7 @@ export function defaultSite() {
       localExtraKm: { ...CHARGES.localExtraKm },
       outstationExtraHour: { ...CHARGES.outstationExtraHour },
       outstationExtraKm: { ...CHARGES.outstationExtraKm },
+      hillStationCharge: { ...CHARGES.hillStationCharge },
     },
     localPackages: LOCAL_PACKAGES.map((row) => ({ ...row })),
     outstationPackages: OUTSTATION_PACKAGES.map((row) => ({ ...row })),
@@ -192,6 +203,7 @@ export function mergeSite(partial) {
       localExtraKm: { ...base.charges.localExtraKm, ...(partial.charges?.localExtraKm || {}) },
       outstationExtraHour: { ...base.charges.outstationExtraHour, ...(partial.charges?.outstationExtraHour || {}) },
       outstationExtraKm: { ...base.charges.outstationExtraKm, ...(partial.charges?.outstationExtraKm || {}) },
+      hillStationCharge: { ...base.charges.hillStationCharge, ...(partial.charges?.hillStationCharge || {}) },
     },
     localPackages: Array.isArray(partial.localPackages)
       ? base.localPackages.map((row, index) => ({ ...row, ...(partial.localPackages[index] || {}) }))
@@ -481,6 +493,30 @@ function mentionsKarnataka(...places) {
   return places.some((place) => /karnataka|bengaluru|bangalore|mysuru|mysore/i.test(String(place || "")));
 }
 
+const HILL_STATION_NAME = /yercaud|ooty|udhagamandalam|udhagai|kodaikanal|kolli\s*hills|coonoor|valparai|yelagiri|munnar/i;
+
+function pointInBounds(lat, lng, bounds) {
+  return lat >= bounds.latMin && lat <= bounds.latMax && lng >= bounds.lngMin && lng <= bounds.lngMax;
+}
+
+export function tripTouchesHillStation({ pickup, drop_location, pickup_lat, pickup_lng, drop_lat, drop_lng } = {}) {
+  if (HILL_STATION_NAME.test(String(pickup || "")) || HILL_STATION_NAME.test(String(drop_location || ""))) return true;
+  for (const bounds of HILL_STATION_BOUNDS) {
+    const fromLat = Number(pickup_lat);
+    const fromLng = Number(pickup_lng);
+    const toLat = Number(drop_lat);
+    const toLng = Number(drop_lng);
+    if (Number.isFinite(fromLat) && Number.isFinite(fromLng) && pointInBounds(fromLat, fromLng, bounds)) return true;
+    if (Number.isFinite(toLat) && Number.isFinite(toLng) && pointInBounds(toLat, toLng, bounds)) return true;
+  }
+  return false;
+}
+
+export function hillStationChargeAmount(charges = CHARGES, vehicleClass = "sedan") {
+  const table = charges.hillStationCharge || CHARGES.hillStationCharge;
+  return Number(table[vehicleClass] ?? table.muv ?? 500);
+}
+
 export function normalizeTime(time) {
   const raw = String(time || "").trim();
   const ampm = /^(1[0-2]|0?\d):([0-5]\d)(?::[0-5]\d)?\s*([ap]m)$/i.exec(raw);
@@ -514,6 +550,20 @@ export function withNightCharge(quote, tripType, tripTime, site) {
   };
 }
 
+export function withHillStationCharge(quote, vehicleId, site, places) {
+  const live = mergeSite(site);
+  const charges = live.charges;
+  const cls = packageClass(normalizeVehicle(vehicleId));
+  if (!quote || !tripTouchesHillStation(places)) return quote;
+  if (quote.lines?.some((line) => /hill station/i.test(line.label))) return quote;
+  const amount = hillStationChargeAmount(charges, cls);
+  return {
+    ...quote,
+    fare: Number(quote.fare || 0) + amount,
+    lines: [...(quote.lines || []), { label: "Hill station charge", value: inr(amount) }],
+  };
+}
+
 /**
  * Fare is calculated on the server from the road distance.
  * The browser uses the same function only to explain the tariff.
@@ -528,19 +578,60 @@ function addNightIfNeeded(fare, trip_time, charges) {
   };
 }
 
+function addHillStationIfNeeded(fare, { charges, cls, pickup, drop_location, pickup_lat, pickup_lng, drop_lat, drop_lng }) {
+  if (!fare || !tripTouchesHillStation({ pickup, drop_location, pickup_lat, pickup_lng, drop_lat, drop_lng })) return fare;
+  if (fare.lines?.some((line) => /hill station/i.test(line.label))) return fare;
+  const amount = hillStationChargeAmount(charges, cls);
+  return {
+    ...fare,
+    total: Number(fare.total || 0) + amount,
+    lines: [...(fare.lines || []), { label: "Hill station charge", value: inr(amount) }],
+  };
+}
+
+function applyTripSurcharges(fare, ctx) {
+  return addHillStationIfNeeded(addNightIfNeeded(fare, ctx.trip_time, ctx.charges), ctx);
+}
+
 export function normalizeDays(value) {
   const days = Math.round(Number(value) || 1);
   return Math.min(30, Math.max(1, days));
 }
 
-export function computeFare({ tripType, vehicleId, km, hours, days, pickup, drop_location, trip_time, trip_date, site }) {
+export function computeFare({
+  tripType,
+  vehicleId,
+  km,
+  hours,
+  days,
+  pickup,
+  drop_location,
+  trip_time,
+  trip_date,
+  pickup_lat,
+  pickup_lng,
+  drop_lat,
+  drop_lng,
+  site,
+}) {
   const live = mergeSite(site);
   const charges = live.charges;
   const vehicle = vehicleById(vehicleId, live.vehicles);
   const trip = tripById(tripType);
-  const done = (fare) => applyOffer(fare, live, trip_date);
   if (!vehicle || !trip) return { total: 0, lines: [], billedKm: 0 };
   const cls = packageClass(vehicle.id);
+  const surchargeCtx = {
+    trip_time,
+    charges,
+    cls,
+    pickup,
+    drop_location,
+    pickup_lat,
+    pickup_lng,
+    drop_lat,
+    drop_lng,
+  };
+  const done = (fare) => applyOffer(applyTripSurcharges(fare, surchargeCtx), live, trip_date);
   const lines = [];
   const distance = Math.max(0, Math.round(Number(km) || 0));
   const tripDays = tripType === "round" ? normalizeDays(days) : 1;
@@ -551,7 +642,7 @@ export function computeFare({ tripType, vehicleId, km, hours, days, pickup, drop
     lines.push({ label: `${pack.hours} hrs & ${pack.km} km local package`, value: inr(total) });
     lines.push({ label: "Extra hour", value: `${inr(charges.localExtraHour[cls])}/hr` });
     lines.push({ label: "Extra km", value: `${inr(charges.localExtraKm[cls])}/km` });
-    return done(addNightIfNeeded({ total, lines, billedKm: pack.km, hours: pack.hours }, trip_time, charges));
+    return done({ total, lines, billedKm: pack.km, hours: pack.hours });
   }
 
   if (tripType === "outstation") {
@@ -561,7 +652,7 @@ export function computeFare({ tripType, vehicleId, km, hours, days, pickup, drop
     lines.push({ label: "Extra hour", value: `${inr(charges.outstationExtraHour[cls])}/hr` });
     lines.push({ label: "Extra km", value: `${inr(charges.outstationExtraKm[cls])}/km` });
     if (distance) lines.push({ label: "Road distance so far", value: `${distance} km` });
-    return done(addNightIfNeeded({ total, lines, billedKm: pack.km, hours: pack.hours }, trip_time, charges));
+    return done({ total, lines, billedKm: pack.km, hours: pack.hours });
   }
 
   if (!distance) return done({ total: 0, lines: [], billedKm: 0 });
@@ -572,12 +663,7 @@ export function computeFare({ tripType, vehicleId, km, hours, days, pickup, drop
       const amount = Number(slab[cls] || 0);
       lines.push({ label: slab.label, value: inr(amount) });
       lines.push({ label: "Actual road distance", value: `${distance} km` });
-      let total = amount;
-      if (isNightStart(trip_time, charges)) {
-        lines.push({ label: "Night charge (11 pm – 5 am)", value: inr(charges.nightCharge) });
-        total += Number(charges.nightCharge);
-      }
-      return done({ total, lines, billedKm: distance });
+      return done({ total: amount, lines, billedKm: distance });
     }
   }
 
@@ -603,10 +689,6 @@ export function computeFare({ tripType, vehicleId, km, hours, days, pickup, drop
     else lines.push({ label: "Minimum km", value: `${charges.roundMinKm} km / day` });
   }
   lines.push({ label: tripType === "round" && tripDays > 1 ? `Driver bata × ${tripDays} days` : "Driver bata", value: inr(bata) });
-  let total = amount + bata;
-  if (isNightStart(trip_time, charges)) {
-    lines.push({ label: "Night charge (11 pm – 5 am)", value: inr(charges.nightCharge) });
-    total += Number(charges.nightCharge);
-  }
+  const total = amount + bata;
   return done({ total, lines, billedKm: billed, days: tripType === "round" ? tripDays : undefined });
 }

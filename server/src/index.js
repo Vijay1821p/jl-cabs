@@ -184,6 +184,10 @@ async function priceTrip(input) {
     trip_time: input.trip_time,
     trip_date: input.trip_date,
     days: input.days,
+    pickup_lat: input.pickup_lat,
+    pickup_lng: input.pickup_lng,
+    drop_lat: input.drop_lat,
+    drop_lng: input.drop_lng,
     site: getSite(),
   });
   if (!fare.total) {
