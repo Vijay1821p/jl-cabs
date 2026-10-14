@@ -29,6 +29,8 @@ export default function Payment() {
     if (!saved) navigate("/book", { replace: true });
     else setDraft(JSON.parse(saved));
     api("/api/config").then((config) => setOnline(config.razorpay)).catch(() => setOnline(false));
+    const payError = new URLSearchParams(window.location.search).get("error");
+    if (payError) setError(payError);
   }, [navigate]);
 
   if (!draft) return <section className="section"><div className="wrap">Loading payment details…</div></section>;
@@ -48,12 +50,6 @@ export default function Payment() {
     return result.booking;
   }
 
-  function goBooking(paid) {
-    const url = `/success?booking=${encodeURIComponent(paid.booking_id)}&mobile=${encodeURIComponent(paid.mobile)}`;
-    sessionStorage.setItem("jc_last_booking", JSON.stringify({ booking_id: paid.booking_id, mobile: paid.mobile }));
-    window.location.replace(url);
-  }
-
   async function payOnline() {
     setBusy("online");
     setError("");
@@ -64,40 +60,38 @@ export default function Payment() {
         body: { booking_id: created.booking_id, mobile: created.mobile },
       });
       await loadCheckout();
-      const response = await new Promise((resolve) => {
-        const checkout = new window.Razorpay({
-          key: order.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
-          order_id: order.order_id || order.orderId,
-          amount: order.amount,
-          currency: order.currency,
-          name: order.name,
-          description: order.description,
-          prefill: order.prefill,
-          theme: { color: "#2f6b45" },
-          handler: (payload) => resolve({ ok: true, payload }),
-          modal: { ondismiss: () => resolve({ cancelled: true }) },
-        });
-        checkout.on("payment.failed", (event) => {
-          resolve({ failed: true, message: event?.error?.description || "Payment failed. Try again." });
-        });
-        checkout.open();
-      });
-      if (response?.cancelled) {
-        setError(`Payment cancelled. Your booking ${created.booking_id} is saved. You can pay again.`);
-        return;
+      sessionStorage.setItem("jc_last_booking", JSON.stringify({ booking_id: created.booking_id, mobile: created.mobile }));
+      if (!order.callbackUrl) {
+        throw new Error("Payment return URL is missing. Refresh and try again.");
       }
-      if (response?.failed) {
-        setError(response.message);
-        return;
-      }
-      const verified = await api("/api/verify-payment", {
-        method: "POST",
-        body: { booking_id: created.booking_id, ...response.payload },
+      const callback = new URL(order.callbackUrl);
+      callback.searchParams.set("booking_id", created.booking_id);
+      callback.searchParams.set("return", window.location.origin);
+      const checkout = new window.Razorpay({
+        key: order.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
+        order_id: order.order_id || order.orderId,
+        amount: order.amount,
+        currency: order.currency,
+        name: order.name,
+        description: order.description,
+        prefill: order.prefill,
+        theme: { color: "#2f6b45" },
+        callback_url: callback.toString(),
+        redirect: true,
+        modal: {
+          ondismiss: () => {
+            setError(`Payment cancelled. Your booking ${created.booking_id} is saved. You can pay again.`);
+            setBusy("");
+          },
+        },
       });
-      goBooking(verified.booking);
+      checkout.on("payment.failed", (event) => {
+        setError(event?.error?.description || "Payment failed. Try again.");
+        setBusy("");
+      });
+      checkout.open();
     } catch (err) {
       setError(err.message);
-    } finally {
       setBusy("");
     }
   }

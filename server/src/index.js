@@ -206,6 +206,21 @@ app.use(cors({
   credentials: false,
 }));
 app.use(express.json({ limit: "100kb" }));
+app.use(express.urlencoded({ extended: false, limit: "100kb" }));
+
+function publicApiBase(req) {
+  const configured = (process.env.PUBLIC_API_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+  if (configured) return configured;
+  const proto = req.get("x-forwarded-proto") || req.protocol || "http";
+  const host = req.get("x-forwarded-host") || req.get("host");
+  return `${proto}://${host}`;
+}
+
+function safeSiteBase(value) {
+  const site = String(value || "").trim().replace(/\/$/, "");
+  if (site && isAllowedOrigin(site)) return site;
+  return origins.find((item) => item.includes("jlcabs.com")) || origins[0] || "https://jlcabs.com";
+}
 
 const writeLimit = rateLimit({ windowMs: 15 * 60_000, limit: 40, standardHeaders: "draft-8", legacyHeaders: false });
 const loginLimit = rateLimit({ windowMs: 15 * 60_000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false });
@@ -435,47 +450,105 @@ async function createPaymentOrder(req, res, next) {
       name: "Jayalakshmi Cabs & Services",
       description: row.payment_choice === "full" ? `Full fare for ${row.booking_id}` : `25% advance for ${row.booking_id}`,
       prefill: { name: row.customer_name, contact: row.mobile },
+      callbackUrl: `${publicApiBase(req)}/api/payments/callback`,
     });
   } catch (error) {
     next(error);
   }
 }
 
+async function applyVerifiedPayment({ booking_id, razorpay_order_id, razorpay_payment_id, razorpay_signature }) {
+  if (!razorpaySecret) {
+    const error = new Error("Online payment is not available yet. Please try again later.");
+    error.status = 503;
+    throw error;
+  }
+  const body = z.object({
+    booking_id: z.string().min(4),
+    razorpay_order_id: z.string().min(5),
+    razorpay_payment_id: z.string().min(5),
+    razorpay_signature: z.string().min(10),
+  }).parse({ booking_id, razorpay_order_id, razorpay_payment_id, razorpay_signature });
+  const expected = crypto.createHmac("sha256", razorpaySecret).update(`${body.razorpay_order_id}|${body.razorpay_payment_id}`).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(body.razorpay_signature);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    const error = new Error("Payment signature did not match. The booking was not marked as paid.");
+    error.status = 400;
+    throw error;
+  }
+  const existing = await one("select * from bookings where booking_id = $1 and razorpay_order_id = $2", [body.booking_id.toUpperCase(), body.razorpay_order_id]);
+  if (!existing) {
+    const error = new Error("Booking not found.");
+    error.status = 404;
+    throw error;
+  }
+  const paidNow = amountDueNow(existing.fare, existing.payment_choice);
+  const status = existing.payment_choice === "full" ? "paid" : "advance";
+  const razorpayPay = await fetchRazorpayPayment(body.razorpay_payment_id);
+  const receipt = receiptFromRazorpay(razorpayPay, body.razorpay_order_id, paidNow, body.razorpay_payment_id);
+  const row = await one(
+    `update bookings
+        set payment_status = $5,
+            amount_paid = $4,
+            razorpay_payment_id = $2,
+            payment_receipt = $6::jsonb
+      where booking_id = $1 and razorpay_order_id = $3 and payment_status <> 'advance' and payment_status <> 'paid'
+      returning *`,
+    [body.booking_id.toUpperCase(), body.razorpay_payment_id, body.razorpay_order_id, paidNow, status, JSON.stringify(receipt)]
+  );
+  const current = row || await one("select * from bookings where booking_id = $1", [body.booking_id.toUpperCase()]);
+  if (!current) {
+    const error = new Error("Booking not found.");
+    error.status = 404;
+    throw error;
+  }
+  return publicBooking(current);
+}
+
 async function verifyPayment(req, res, next) {
   try {
-    if (!razorpaySecret) return res.status(503).json({ error: "Online payment is not available yet. Please try again later." });
-    const body = z.object({
-      booking_id: z.string().min(4),
-      razorpay_order_id: z.string().min(5),
-      razorpay_payment_id: z.string().min(5),
-      razorpay_signature: z.string().min(10),
-    }).parse(req.body);
-    const expected = crypto.createHmac("sha256", razorpaySecret).update(`${body.razorpay_order_id}|${body.razorpay_payment_id}`).digest("hex");
-    const a = Buffer.from(expected);
-    const b = Buffer.from(body.razorpay_signature);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      return res.status(400).json({ error: "Payment signature did not match. The booking was not marked as paid." });
-    }
-    const existing = await one("select * from bookings where booking_id = $1 and razorpay_order_id = $2", [body.booking_id.toUpperCase(), body.razorpay_order_id]);
-    if (!existing) return res.status(404).json({ error: "Booking not found." });
-    const paidNow = amountDueNow(existing.fare, existing.payment_choice);
-    const status = existing.payment_choice === "full" ? "paid" : "advance";
-    const razorpayPay = await fetchRazorpayPayment(body.razorpay_payment_id);
-    const receipt = receiptFromRazorpay(razorpayPay, body.razorpay_order_id, paidNow, body.razorpay_payment_id);
-    const row = await one(
-      `update bookings
-          set payment_status = $5,
-              amount_paid = $4,
-              razorpay_payment_id = $2,
-              payment_receipt = $6::jsonb
-        where booking_id = $1 and razorpay_order_id = $3 and payment_status <> 'advance' and payment_status <> 'paid'
-        returning *`,
-      [body.booking_id.toUpperCase(), body.razorpay_payment_id, body.razorpay_order_id, paidNow, status, JSON.stringify(receipt)]
-    );
-    const current = row || await one("select * from bookings where booking_id = $1", [body.booking_id.toUpperCase()]);
-    if (!current) return res.status(404).json({ error: "Booking not found." });
-    res.json({ ok: true, booking: publicBooking(current) });
+    const booking = await applyVerifiedPayment(req.body);
+    res.json({ ok: true, booking });
   } catch (error) {
+    next(error);
+  }
+}
+
+async function paymentCallback(req, res, next) {
+  try {
+    const fields = { ...req.query, ...req.body };
+    const returnSite = safeSiteBase(fields.return || req.get("origin"));
+    const bookingId = String(fields.booking_id || "").toUpperCase();
+    if (!fields.razorpay_payment_id || !fields.razorpay_order_id || !fields.razorpay_signature) {
+      return res.redirect(303, `${returnSite}/payment?error=${encodeURIComponent("Payment was not completed. You can try again.")}`);
+    }
+    let booking;
+    if (bookingId) {
+      booking = await applyVerifiedPayment({
+        booking_id: bookingId,
+        razorpay_order_id: fields.razorpay_order_id,
+        razorpay_payment_id: fields.razorpay_payment_id,
+        razorpay_signature: fields.razorpay_signature,
+      });
+    } else {
+      const existing = await one("select * from bookings where razorpay_order_id = $1", [fields.razorpay_order_id]);
+      if (!existing) {
+        return res.redirect(303, `${returnSite}/payment?error=${encodeURIComponent("Booking not found for this payment.")}`);
+      }
+      booking = await applyVerifiedPayment({
+        booking_id: existing.booking_id,
+        razorpay_order_id: fields.razorpay_order_id,
+        razorpay_payment_id: fields.razorpay_payment_id,
+        razorpay_signature: fields.razorpay_signature,
+      });
+    }
+    return res.redirect(303, `${returnSite}/success?booking=${encodeURIComponent(booking.booking_id)}&mobile=${encodeURIComponent(booking.mobile)}`);
+  } catch (error) {
+    const returnSite = safeSiteBase(req.body?.return || req.query?.return);
+    if (error.status && error.status < 500) {
+      return res.redirect(303, `${returnSite}/payment?error=${encodeURIComponent(error.message)}`);
+    }
     next(error);
   }
 }
@@ -484,6 +557,8 @@ app.post("/api/payments/create-order", writeLimit, createPaymentOrder);
 app.post("/api/create-order", writeLimit, createPaymentOrder);
 app.post("/api/payments/verify", writeLimit, verifyPayment);
 app.post("/api/verify-payment", writeLimit, verifyPayment);
+app.post("/api/payments/callback", writeLimit, paymentCallback);
+app.get("/api/payments/callback", writeLimit, paymentCallback);
 
 app.post("/api/admin/login", loginLimit, (req, res) => {
   if (!adminPassword || !jwtSecret) return res.status(503).json({ error: "Set ADMIN_PASSWORD and JWT_SECRET on the server." });
