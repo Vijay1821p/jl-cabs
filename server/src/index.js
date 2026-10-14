@@ -4,6 +4,7 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import jwt from "jsonwebtoken";
+import Razorpay from "razorpay";
 import { z, ZodError } from "zod";
 import { amountDueNow, computeFare, listedDropFare, mergeSite, normalizeTime, normalizeVehicle, popularRouteKm, tripById, vehicleById } from "@jc/shared";
 import { initDb, one, query } from "./db.js";
@@ -15,6 +16,9 @@ const adminPassword = process.env.ADMIN_PASSWORD || "";
 const jwtSecret = process.env.JWT_SECRET || "";
 const razorpayKey = process.env.RAZORPAY_KEY_ID || "";
 const razorpaySecret = process.env.RAZORPAY_KEY_SECRET || "";
+const razorpay = razorpayKey && razorpaySecret
+  ? new Razorpay({ key_id: razorpayKey, key_secret: razorpaySecret })
+  : null;
 const origins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
   .split(",")
   .map((s) => s.trim().replace(/\/$/, ""))
@@ -100,13 +104,21 @@ function publicBooking(row) {
 }
 
 async function fetchRazorpayPayment(paymentId) {
-  if (!razorpayKey || !razorpaySecret || !paymentId) return null;
-  const auth = Buffer.from(`${razorpayKey}:${razorpaySecret}`).toString("base64");
-  const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
-    headers: { Authorization: `Basic ${auth}` },
-  });
-  if (!response.ok) return null;
-  return response.json();
+  if (!razorpay || !paymentId) return null;
+  try {
+    return await razorpay.payments.fetch(paymentId);
+  } catch {
+    return null;
+  }
+}
+
+function razorpayHttpError(error) {
+  const description = error?.error?.description || error?.message || "Razorpay request failed.";
+  const statusCode = Number(error?.statusCode) || 500;
+  const status = statusCode === 401 ? 401 : statusCode >= 400 && statusCode < 500 ? statusCode : 500;
+  const next = new Error(description);
+  next.status = status;
+  return next;
 }
 
 function receiptFromRazorpay(pay, orderId, paidNow, paymentId) {
@@ -386,9 +398,9 @@ app.get("/api/bookings/:id", async (req, res, next) => {
   }
 });
 
-app.post("/api/payments/create-order", writeLimit, async (req, res, next) => {
+async function createPaymentOrder(req, res, next) {
   try {
-    if (!razorpayKey || !razorpaySecret) return res.status(503).json({ error: "Online payment is not available yet. Please try again later." });
+    if (!razorpay) return res.status(503).json({ error: "Online payment is not available yet. Please try again later." });
     const { booking_id: bookingId, mobile } = z.object({ booking_id: z.string().min(4), mobile: phone }).parse(req.body);
     const row = await one("select * from bookings where booking_id = $1 and mobile = $2", [bookingId.toUpperCase(), mobile]);
     if (!row) return res.status(404).json({ error: "Booking not found." });
@@ -396,22 +408,27 @@ app.post("/api/payments/create-order", writeLimit, async (req, res, next) => {
     if (row.booking_status === "cancelled") return res.status(400).json({ error: "This booking is cancelled." });
 
     const payNow = amountDueNow(row.fare, row.payment_choice);
-    const auth = Buffer.from(`${razorpayKey}:${razorpaySecret}`).toString("base64");
-    const response = await fetch("https://api.razorpay.com/v1/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
-      body: JSON.stringify({
-        amount: payNow * 100,
+    const amount = Math.round(Number(payNow) * 100);
+    if (!Number.isFinite(amount) || amount < 100) {
+      return res.status(400).json({ error: "Amount must be at least ₹1 (100 paise)." });
+    }
+
+    let order;
+    try {
+      order = await razorpay.orders.create({
+        amount,
         currency: "INR",
-        receipt: row.booking_id,
+        receipt: row.booking_id.slice(0, 40),
         notes: { booking_id: row.booking_id, kind: row.payment_choice === "full" ? "full" : "advance_25" },
-      }),
-    });
-    const order = await response.json();
-    if (!response.ok) return res.status(502).json({ error: order?.error?.description || "Could not start the payment." });
+      });
+    } catch (error) {
+      throw razorpayHttpError(error);
+    }
+
     await query("update bookings set razorpay_order_id = $1, payment_status = 'pending' where id = $2", [order.id, row.id]);
     res.json({
       keyId: razorpayKey,
+      order_id: order.id,
       orderId: order.id,
       amount: order.amount,
       currency: order.currency,
@@ -422,10 +439,11 @@ app.post("/api/payments/create-order", writeLimit, async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
+}
 
-app.post("/api/payments/verify", writeLimit, async (req, res, next) => {
+async function verifyPayment(req, res, next) {
   try {
+    if (!razorpaySecret) return res.status(503).json({ error: "Online payment is not available yet. Please try again later." });
     const body = z.object({
       booking_id: z.string().min(4),
       razorpay_order_id: z.string().min(5),
@@ -436,7 +454,7 @@ app.post("/api/payments/verify", writeLimit, async (req, res, next) => {
     const a = Buffer.from(expected);
     const b = Buffer.from(body.razorpay_signature);
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      return res.status(400).json({ error: "Payment could not be verified. Contact us with your booking ID if money was deducted." });
+      return res.status(400).json({ error: "Payment signature did not match. The booking was not marked as paid." });
     }
     const existing = await one("select * from bookings where booking_id = $1 and razorpay_order_id = $2", [body.booking_id.toUpperCase(), body.razorpay_order_id]);
     if (!existing) return res.status(404).json({ error: "Booking not found." });
@@ -456,11 +474,16 @@ app.post("/api/payments/verify", writeLimit, async (req, res, next) => {
     );
     const current = row || await one("select * from bookings where booking_id = $1", [body.booking_id.toUpperCase()]);
     if (!current) return res.status(404).json({ error: "Booking not found." });
-    res.json({ booking: publicBooking(current) });
+    res.json({ ok: true, booking: publicBooking(current) });
   } catch (error) {
     next(error);
   }
-});
+}
+
+app.post("/api/payments/create-order", writeLimit, createPaymentOrder);
+app.post("/api/create-order", writeLimit, createPaymentOrder);
+app.post("/api/payments/verify", writeLimit, verifyPayment);
+app.post("/api/verify-payment", writeLimit, verifyPayment);
 
 app.post("/api/admin/login", loginLimit, (req, res) => {
   if (!adminPassword || !jwtSecret) return res.status(503).json({ error: "Set ADMIN_PASSWORD and JWT_SECRET on the server." });

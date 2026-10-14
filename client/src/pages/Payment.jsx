@@ -19,6 +19,7 @@ export default function Payment() {
   useTitle("Payment", "Pay 25% now or the full fare online.", { path: "/payment", noindex: true });
   const navigate = useNavigate();
   const [draft, setDraft] = useState(null);
+  const [booking, setBooking] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [online, setOnline] = useState(false);
@@ -38,10 +39,12 @@ export default function Payment() {
   const later = choice === "full" ? 0 : balanceDue(draft.quote.fare);
 
   async function saveBooking() {
+    if (booking) return booking;
     const result = await api("/api/bookings", {
       method: "POST",
       body: { ...draft, hours: Number(draft.hours), days: Number(draft.days) || 1, payment_choice: choice },
     });
+    setBooking(result.booking);
     return result.booking;
   }
 
@@ -53,32 +56,42 @@ export default function Payment() {
     setBusy("online");
     setError("");
     try {
-      const booking = await saveBooking();
-      const order = await api("/api/payments/create-order", {
+      const created = await saveBooking();
+      const order = await api("/api/create-order", {
         method: "POST",
-        body: { booking_id: booking.booking_id, mobile: booking.mobile },
+        body: { booking_id: created.booking_id, mobile: created.mobile },
       });
       await loadCheckout();
       const response = await new Promise((resolve) => {
         const checkout = new window.Razorpay({
-          key: order.keyId,
-          order_id: order.orderId,
+          key: order.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
+          order_id: order.order_id || order.orderId,
           amount: order.amount,
           currency: order.currency,
           name: order.name,
           description: order.description,
           prefill: order.prefill,
           theme: { color: "#2f6b45" },
-          handler: resolve,
-          modal: { ondismiss: () => resolve(null) },
+          handler: (payload) => resolve({ ok: true, payload }),
+          modal: { ondismiss: () => resolve({ cancelled: true }) },
+        });
+        checkout.on("payment.failed", (event) => {
+          resolve({ failed: true, message: event?.error?.description || "Payment failed. Try again." });
         });
         checkout.open();
       });
-      if (!response) {
-        goSuccess(booking);
+      if (response?.cancelled) {
+        setError(`Payment cancelled. Your booking ${created.booking_id} is saved. You can pay again.`);
         return;
       }
-      const verified = await api("/api/payments/verify", { method: "POST", body: { booking_id: booking.booking_id, ...response } });
+      if (response?.failed) {
+        setError(response.message);
+        return;
+      }
+      const verified = await api("/api/verify-payment", {
+        method: "POST",
+        body: { booking_id: created.booking_id, ...response.payload },
+      });
       goSuccess(verified.booking);
     } catch (err) {
       setError(err.message);
