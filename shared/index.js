@@ -111,7 +111,6 @@ export const TARIFF_TERMS = [
   "Round Trips - Driver batta is Rs. 600/- per day if the distance travelled is more than 500kms in a single day.",
   "Round Trips - Minimum running must be 250 Kms per day. For Karnataka it is minimum 300 Kms per day.",
   "Round Trips - 1 day means 1 calendar day (from 00:00 hrs to 23:59 hrs).",
-  "Hill station charges - Rs. 300 for sedan Rs. 500 for MUV.",
   "Night Charges Rs. 200 - Applicable if the trip starts between 11 pm and 5 am.",
   "Washing Charges for carrying Pet Rs. 400 for Sedan & Rs. 500 for MUV.",
   "Luggage charges Rs. 300 for carrying extra Luggage. Check Luggage Policy for more details.",
