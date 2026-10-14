@@ -48,8 +48,10 @@ export default function Payment() {
     return result.booking;
   }
 
-  function goSuccess(booking) {
-    navigate(`/success?booking=${booking.booking_id}&mobile=${booking.mobile}`);
+  function goBooking(paid) {
+    const url = `/success?booking=${encodeURIComponent(paid.booking_id)}&mobile=${encodeURIComponent(paid.mobile)}`;
+    sessionStorage.setItem("jc_last_booking", JSON.stringify({ booking_id: paid.booking_id, mobile: paid.mobile }));
+    window.location.replace(url);
   }
 
   async function payOnline() {
@@ -92,7 +94,7 @@ export default function Payment() {
         method: "POST",
         body: { booking_id: created.booking_id, ...response.payload },
       });
-      goSuccess(verified.booking);
+      goBooking(verified.booking);
     } catch (err) {
       setError(err.message);
     } finally {
