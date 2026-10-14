@@ -275,7 +275,8 @@ input:focus, select:focus, textarea:focus { outline: 3px solid #d9f0e3; border-c
 .cta-card p, .cta-card .kicker { color: #e7f3eb; }
 .cta-card h2 { color: white; }
 
-.address-block { display: grid; gap: 8px; }
+.address-block { display: grid; gap: 8px; position: relative; }
+.address-block:focus-within { z-index: 6; }
 .place-field { position: relative; display: flex; gap: 8px; align-items: center; }
 .suggest-list {
   position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 52px;

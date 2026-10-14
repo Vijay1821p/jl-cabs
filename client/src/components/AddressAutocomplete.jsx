@@ -1,12 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { loadGooglePlaces } from "../googleMaps.js";
+import {
+  parseDistrictFromAddress,
+  pointWithDistrict,
+} from "../placeAddress.js";
 
 function predictionText(prediction, field) {
   const value = prediction?.[field];
   return value ? String(value) : "";
 }
 
-export default function AddressAutocomplete({ label, value, point, onChange, placeholder, error, children }) {
+function districtText(selected) {
+  return selected?.district || parseDistrictFromAddress(selected?.address) || "";
+}
+
+export default function AddressAutocomplete({ label, value, point, onChange, placeholder, error, children, showCoordinates = true, showDistrict = true }) {
+  const inputId = useId();
   const inputRef = useRef(null);
   const onChangeRef = useRef(onChange);
   const sessionRef = useRef(null);
@@ -79,12 +88,14 @@ export default function AddressAutocomplete({ label, value, point, onChange, pla
     const fallback = predictionText(prediction, "text");
     try {
       const place = prediction.toPlace();
-      await place.fetchFields({ fields: ["displayName", "formattedAddress", "location"] });
+      await place.fetchFields({ fields: ["displayName", "formattedAddress", "location", "addressComponents"] });
       sessionRef.current = null;
-      const address = place.formattedAddress || place.displayName || fallback;
       const lat = place.location?.lat?.();
       const lng = place.location?.lng?.();
-      const nextPoint = Number.isFinite(lat) && Number.isFinite(lng) ? { address, lat, lng } : null;
+      const nextPoint = Number.isFinite(lat) && Number.isFinite(lng)
+        ? pointWithDistrict(place.formattedAddress || place.displayName || fallback, lat, lng, place.addressComponents)
+        : null;
+      const address = nextPoint?.address || fallback;
       publish(address, nextPoint);
     } catch {
       sessionRef.current = null;
@@ -125,10 +136,10 @@ export default function AddressAutocomplete({ label, value, point, onChange, pla
 
   return (
     <div className="address-block">
-      <label>
-        {label}
-        <span className="place-field">
+      <label htmlFor={inputId}>{label}</label>
+      <span className="place-field">
           <input
+            id={inputId}
             ref={inputRef}
             type="text"
             placeholder={placeholder}
@@ -169,14 +180,20 @@ export default function AddressAutocomplete({ label, value, point, onChange, pla
               })}
             </ul>
           )}
-        </span>
-      </label>
+      </span>
       {loadError && <span className="error">{loadError}</span>}
       {error && <span className="error">{error}</span>}
       <div className="place-meta">
         <p><strong>Selected Address:</strong> <span>{selected?.address || "-"}</span></p>
-        <p><strong>Latitude:</strong> <span>{selected ? selected.lat : "-"}</span></p>
-        <p><strong>Longitude:</strong> <span>{selected ? selected.lng : "-"}</span></p>
+        {showDistrict && (
+          <p><strong>District:</strong> <span>{districtText(selected) || "-"}</span></p>
+        )}
+        {showCoordinates && (
+          <>
+            <p><strong>Latitude:</strong> <span>{selected ? selected.lat : "-"}</span></p>
+            <p><strong>Longitude:</strong> <span>{selected ? selected.lng : "-"}</span></p>
+          </>
+        )}
       </div>
     </div>
   );

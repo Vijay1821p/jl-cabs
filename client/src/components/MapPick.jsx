@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { loadGooglePlaces } from "../googleMaps.js";
+import {
+  appendDistrictFromName,
+  districtLabel,
+  finalizeAddress,
+  parseDistrictFromAddress,
+  pointWithDistrict,
+} from "../placeAddress.js";
 
 const START = { lat: 11.0, lng: 77.2 };
 const PRECISE_METRES = 200;
@@ -28,8 +35,9 @@ function placeLabel(address = {}) {
     address.hamlet,
   ];
   const city = address.city || address.town || address.municipality;
+  const district = districtLabel(address.state_district || address.county);
   const parts = [];
-  for (const part of [street, ...areas, city, address.state, address.postcode]) {
+  for (const part of [street, ...areas, city, district, address.state, address.postcode]) {
     if (!part || isWard(part)) continue;
     if (parts.some((item) => item.toLowerCase() === part.toLowerCase())) continue;
     parts.push(part);
@@ -53,6 +61,22 @@ function metresBetween(from, to) {
   return Math.hypot(dLng * Math.cos(lat) * 6371000, dLat * 6371000);
 }
 
+function isJunk(part) {
+  const text = String(part || "").trim();
+  if (!text || isWard(text)) return true;
+  if (/^[A-Z0-9]{4,}\+[A-Z0-9]+$/i.test(text)) return true;
+  if (/^\d{6}$/.test(text)) return false;
+  return /^[A-Z0-9]{3,12}$/.test(text);
+}
+
+function doorText(components) {
+  const streetNumber = componentValue(components, "street_number");
+  if (streetNumber && !isJunk(streetNumber)) return streetNumber;
+  const premise = componentValue(components, "premise");
+  if (premise && /\d/.test(premise) && !isJunk(premise)) return premise;
+  return "";
+}
+
 function labelFromNearby(origin, found) {
   const rows = (found || []).map((place) => {
     const lat = place.location?.lat?.();
@@ -64,29 +88,22 @@ function labelFromNearby(origin, found) {
   }).sort((a, b) => a.metres - b.metres);
   const nearest = rows[0];
   if (!nearest) return "";
-  const doorRow = rows.find((row) => row.metres <= 20 && (componentValue(row.components, "street_number") || componentValue(row.components, "premise")));
-  const roadRow = rows.find((row) => row.metres <= 50 && componentValue(row.components, "route"));
-  const door = doorRow
-    ? (componentValue(doorRow.components, "street_number") || componentValue(doorRow.components, "premise"))
-    : "";
-  const road = roadRow ? componentValue(roadRow.components, "route") : "";
+  const door = nearest.metres <= 20 ? doorText(nearest.components) : "";
+  const road = nearest.metres <= 50 ? componentValue(nearest.components, "route") : "";
   const areas = ["neighborhood", "sublocality_level_3", "sublocality_level_2", "sublocality_level_1"]
-    .map((type) => componentValue(nearest.components, type))
-    .filter((part) => part && !isWard(part));
-  const city = componentValue(nearest.components, "locality")
-    || rows.map((row) => componentValue(row.components, "locality")).find(Boolean)
-    || "";
-  const state = componentValue(nearest.components, "administrative_area_level_1") || "";
-  const postcode = componentValue(nearest.components, "postal_code") || "";
+    .map((type) => componentValue(nearest.components, type));
+  const city = componentValue(nearest.components, "locality");
+  const district = districtLabel(rows.map((row) => componentValue(row.components, "administrative_area_level_2")).find(Boolean));
+  const state = componentValue(nearest.components, "administrative_area_level_1");
+  const postcode = componentValue(nearest.components, "postal_code");
   const street = [door, road].filter(Boolean).join(" ");
   const parts = [];
-  for (const part of [street, ...areas, city, state, postcode]) {
-    if (!part || isWard(part)) continue;
-    if (/^[A-Z0-9]{4,}\+[A-Z0-9]+$/i.test(part)) continue;
+  for (const part of [street, ...areas, city, district, state, postcode]) {
+    if (isJunk(part)) continue;
     if (parts.some((item) => item.toLowerCase() === part.toLowerCase())) continue;
     parts.push(part);
   }
-  return parts.join(", ");
+  return finalizeAddress(parts.join(", "), ...rows.map((row) => row.components));
 }
 
 async function nearbyAddress(lat, lng) {
@@ -98,7 +115,33 @@ async function nearbyAddress(lat, lng) {
     maxResultCount: 8,
     rankPreference: places.SearchNearbyRankPreference?.DISTANCE,
   });
-  return labelFromNearby({ lat, lng }, found);
+  const componentSets = (found || []).map((place) => place.addressComponents || []);
+  let label = labelFromNearby({ lat, lng }, found);
+  label = finalizeAddress(label, ...componentSets);
+  if (!parseDistrictFromAddress(label)) {
+    for (const place of found || []) {
+      label = finalizeAddress(label, place.addressComponents || []);
+      if (parseDistrictFromAddress(label)) break;
+    }
+  }
+  return label;
+}
+
+async function nominatimDistrict(lat, lng) {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=10&lat=${lat}&lon=${lng}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const response = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const name = data.address?.state_district || data.address?.county || "";
+    const state = data.address?.state || "";
+    if (!name) return null;
+    return { name, state };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function yourLocationButton() {
@@ -117,7 +160,11 @@ function yourLocationButton() {
 
 async function placeName(lat, lng) {
   try {
-    const googleLabel = await nearbyAddress(lat, lng);
+    let googleLabel = await nearbyAddress(lat, lng);
+    if (googleLabel && !parseDistrictFromAddress(googleLabel)) {
+      const district = await nominatimDistrict(lat, lng);
+      if (district) googleLabel = appendDistrictFromName(googleLabel, district.name, district.state);
+    }
     if (googleLabel) return googleLabel;
   } catch {
     /* The area lookup can fail. The map name below is the backup. */
@@ -129,7 +176,11 @@ async function placeName(lat, lng) {
     const response = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
     if (!response.ok) throw new Error("Could not name that point.");
     const data = await response.json();
-    return placeLabel(data.address) || "";
+    const label = placeLabel(data.address) || "";
+    if (label && !parseDistrictFromAddress(label)) {
+      return appendDistrictFromName(label, data.address?.state_district || data.address?.county, data.address?.state);
+    }
+    return label;
   } finally {
     clearTimeout(timer);
   }
@@ -149,8 +200,10 @@ export default function MapPick({ open, mode, onPick, onClose }) {
   const settleRef = useRef(null);
   const locateBtnRef = useRef(null);
   const selectRef = useRef(() => {});
+  const selectPlaceRef = useRef(() => {});
   const locateRef = useRef(() => {});
   const locateRun = useRef(0);
+  const pinToken = useRef(0);
   const sessionRef = useRef(null);
   const requestRef = useRef(0);
   const searchTimer = useRef(null);
@@ -173,17 +226,20 @@ export default function MapPick({ open, mode, onPick, onClose }) {
     locateBtnRef.current?.setAttribute("aria-busy", "false");
   }
 
-  function pinExact(lat, lng, address) {
+  function fieldForMode() {
+    return modeRef.current === "drop" ? "drop_location" : "pickup";
+  }
+
+  function pinExact(lat, lng, address, field = fieldForMode(), token = pinToken.current, point = null) {
     const map = mapRef.current;
     const marker = markerRef.current;
-    if (!map || !marker || !window.google?.maps || !address) return;
+    if (token !== pinToken.current || !map || !marker || !window.google?.maps || !address) return;
     const position = new window.google.maps.LatLng(lat, lng);
     marker.setPosition(position);
     marker.setVisible(true);
     map.panTo(position);
     map.setZoom(16);
-    const field = modeRef.current === "pickup" ? "pickup" : "drop_location";
-    pickRef.current(field, address, { address, lat, lng });
+    pickRef.current(field, address, point || { address, lat, lng });
     setHint("Place pinned.");
     closeRef.current();
   }
@@ -192,6 +248,8 @@ export default function MapPick({ open, mode, onPick, onClose }) {
     const map = mapRef.current;
     const marker = markerRef.current;
     if (!map || !marker || !window.google?.maps) return;
+    const token = ++pinToken.current;
+    const field = fieldForMode();
     const position = new window.google.maps.LatLng(lat, lng);
     marker.setPosition(position);
     marker.setVisible(true);
@@ -200,16 +258,42 @@ export default function MapPick({ open, mode, onPick, onClose }) {
     setHint("Finding the place name…");
     setError("");
     const finish = (address) => {
+      if (token !== pinToken.current) return;
       if (!address) {
         setHint("Could not name that point. Tap again.");
         return;
       }
-      const field = modeRef.current === "pickup" ? "pickup" : "drop_location";
-      pickRef.current(field, address, { address, lat, lng });
-      setHint("Place pinned.");
-      closeRef.current();
+      const district = parseDistrictFromAddress(address);
+      pinExact(lat, lng, address, field, token, { address, lat, lng, ...(district ? { district } : {}) });
     };
     placeName(lat, lng).then(finish).catch(() => finish(""));
+  }
+
+  async function selectPlace(placeId, lat, lng) {
+    const token = ++pinToken.current;
+    const field = fieldForMode();
+    setHint("Pinning that place…");
+    setError("");
+    try {
+      const places = await loadGooglePlaces();
+      if (token !== pinToken.current) return;
+      const place = new places.Place({ id: placeId });
+      await place.fetchFields({ fields: ["displayName", "formattedAddress", "location", "addressComponents"] });
+      if (token !== pinToken.current) return;
+      const placeLat = place.location?.lat?.();
+      const placeLng = place.location?.lng?.();
+      const point = pointWithDistrict(
+        place.formattedAddress || place.displayName || "",
+        placeLat,
+        placeLng,
+        place.addressComponents,
+      );
+      if (!point.address || !Number.isFinite(placeLat) || !Number.isFinite(placeLng)) throw new Error("That place has no exact point.");
+      pinExact(placeLat, placeLng, point.address, field, token, point);
+    } catch {
+      if (token !== pinToken.current) return;
+      selectAt(lat, lng);
+    }
   }
 
   function showHere(fix) {
@@ -297,6 +381,7 @@ export default function MapPick({ open, mode, onPick, onClose }) {
   }
 
   selectRef.current = selectAt;
+  selectPlaceRef.current = selectPlace;
   locateRef.current = useCurrentLocation;
 
   function searchPlaces(text) {
@@ -335,19 +420,28 @@ export default function MapPick({ open, mode, onPick, onClose }) {
   async function chooseSuggestion(suggestion) {
     const prediction = suggestion?.placePrediction;
     if (!prediction) return;
+    const token = ++pinToken.current;
+    const field = fieldForMode();
     setSuggestions([]);
     setError("");
     setHint("Pinning that place…");
     try {
       const place = prediction.toPlace();
-      await place.fetchFields({ fields: ["displayName", "formattedAddress", "location"] });
+      await place.fetchFields({ fields: ["displayName", "formattedAddress", "location", "addressComponents"] });
       sessionRef.current = null;
+      if (token !== pinToken.current) return;
       const lat = place.location?.lat?.();
       const lng = place.location?.lng?.();
-      const address = place.formattedAddress || place.displayName || String(prediction.text || "");
+      const point = pointWithDistrict(
+        place.formattedAddress || place.displayName || String(prediction.text || ""),
+        lat,
+        lng,
+        place.addressComponents,
+      );
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("That place has no exact point.");
-      pinExact(lat, lng, address);
+      pinExact(lat, lng, point.address, field, token, point);
     } catch (chooseError) {
+      if (token !== pinToken.current) return;
       setHint("Search a place, press Your location, or tap the map.");
       setError(chooseError.message || "Could not pin that place.");
     }
@@ -377,7 +471,7 @@ export default function MapPick({ open, mode, onPick, onClose }) {
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
-          clickableIcons: false,
+          clickableIcons: true,
           zoomControl: true,
           zoomControlOptions: { position: maps.ControlPosition.RIGHT_CENTER },
         });
@@ -430,7 +524,14 @@ export default function MapPick({ open, mode, onPick, onClose }) {
         accuracyRef.current = circle;
         locateBtnRef.current = button;
         listener = map.addListener("click", (event) => {
-          selectRef.current(event.latLng.lat(), event.latLng.lng());
+          const lat = event.latLng.lat();
+          const lng = event.latLng.lng();
+          if (event.placeId) {
+            event.stop?.();
+            selectPlaceRef.current(event.placeId, lat, lng);
+            return;
+          }
+          selectRef.current(lat, lng);
         });
         you.addListener("click", () => {
           const fix = hereRef.current;
@@ -444,6 +545,7 @@ export default function MapPick({ open, mode, onPick, onClose }) {
 
     return () => {
       cancelled = true;
+      pinToken.current += 1;
       locateRun.current += 1;
       if (watchRef.current != null && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchRef.current);

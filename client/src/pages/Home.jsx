@@ -94,12 +94,12 @@ function QuoteCard() {
           }}>{item.label}</button>
         ))}
       </div>
-      <AddressAutocomplete label="Pickup location" value={pickup} point={pickupPoint} onChange={(text, point) => { setPickup(text); setPickupPoint(point || null); }} placeholder="Your pickup location">
+      <AddressAutocomplete label="Pickup location" value={pickup} point={pickupPoint} showCoordinates={false} onChange={(text, point) => { setPickup(text); setPickupPoint(point || null); }} placeholder="Your pickup location">
         <button type="button" className="map-btn" aria-label="Pin pickup on the map" onClick={() => setMap("pickup")}>
           <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
         </button>
       </AddressAutocomplete>
-      <AddressAutocomplete label="Drop location" value={drop} point={dropPoint} onChange={(text, point) => { setDrop(text); setDropPoint(point || null); }} placeholder="Your drop location">
+      <AddressAutocomplete label="Drop location" value={drop} point={dropPoint} showCoordinates={false} onChange={(text, point) => { setDrop(text); setDropPoint(point || null); }} placeholder="Your drop location">
         <button type="button" className="map-btn" aria-label="Pin drop on the map" onClick={() => setMap("drop")}>
           <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" /></svg>
         </button>
