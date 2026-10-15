@@ -22,6 +22,11 @@ export function tripImageSrc(value) {
   return match?.file || "/trips/chennai.jpg";
 }
 
+/** Smaller WebP twin of a /trips/*.jpg photo (generated next to the JPG), or "" for other sources. */
+export function tripImageWebp(src) {
+  return typeof src === "string" && /^\/trips\/[^/]+\.jpg$/.test(src) ? src.replace(/\.jpg$/, ".webp") : "";
+}
+
 export function imageForPlace(place) {
   const key = String(place || "").toLowerCase().replace(/\s+/g, "");
   const aliases = {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BOOK_TRIPS, EXTRAS, LOCAL_PACKAGES, OUTSTATION_PACKAGES, VEHICLES, formatPhone, greetingWhatsAppUrl, inr, listedVehicles, requestVehicleWhatsAppUrl, tripImageSrc } from "@jc/shared";
+import { BOOK_TRIPS, EXTRAS, LOCAL_PACKAGES, OUTSTATION_PACKAGES, VEHICLES, formatPhone, greetingWhatsAppUrl, inr, listedVehicles, requestVehicleWhatsAppUrl, tripImageSrc, tripImageWebp } from "@jc/shared";
 import { api } from "../api.js";
 import AddressAutocomplete from "../components/AddressAutocomplete.jsx";
 import MapPick from "../components/MapPick.jsx";
@@ -176,8 +176,8 @@ function QuoteCard() {
 
 export default function Home() {
   useTitle(
-    "Coimbatore Cab Service",
-    "Jayalakshmi Cabs is a Coimbatore cab service for one-way taxi, round-trip, outstation taxi, airport taxi and hourly rental. Sedan and Ertiga / MUV. See the fare before you pay.",
+    "Jayalakshmi Cabs & Services | Taxi Service in Coimbatore",
+    "Book one-way, round-trip, outstation and hourly cabs in Coimbatore. Choose a sedan or Ertiga with Jayalakshmi Cabs & Services. Call or WhatsApp 84389 05590.",
     { path: "/", jsonLd: taxiServiceJsonLd() },
   );
   const { site } = useSite();
@@ -191,7 +191,7 @@ export default function Home() {
         <div className="wrap hero-grid">
           <div>
             <p className="kicker light">{site.pages.heroKicker}</p>
-            <h1>{company.shortName}</h1>
+            <h1>{company.shortName}<span className="h1-sub">Taxi Service in Coimbatore</span></h1>
             <p className="hero-tag">{company.tagline}</p>
             <p className="hero-lead">{site.pages.heroLead}</p>
             <OfferBanner tripDate={today()} tone="hero" />
@@ -242,6 +242,9 @@ export default function Home() {
               </Link>
             ))}
           </div>
+          <p className="fine" style={{ marginTop: 16 }}>
+            See the <Link to="/tariff">taxi tariff</Link>, <Link to="/book">book a cab online</Link> or <Link to="/#contact">contact us</Link> to call or WhatsApp.
+          </p>
         </div>
       </section>
 
@@ -341,10 +344,21 @@ export default function Home() {
               <a className="btn call" href={`tel:+91${company.phone}`}>Call now</a>
               <a className="btn wa-btn" href={wa} target="_blank" rel="noreferrer">WhatsApp</a>
             </div>
+            <p className="fine"><Link to="/book">Book online</Link> · <Link to="/tariff">View tariff</Link> · <Link to="/track">Track a booking</Link></p>
           </aside>
         </div>
       </section>
     </>
+  );
+}
+
+function TripPhoto({ src, alt }) {
+  const webp = tripImageWebp(src);
+  return (
+    <picture>
+      {webp && <source srcSet={webp} type="image/webp" />}
+      <img src={src} alt={alt} width="96" height="80" loading="lazy" decoding="async" />
+    </picture>
   );
 }
 
@@ -375,7 +389,7 @@ function PopularTrips() {
               className="trip-card"
               to={`/book?trip=${trip.trip_type || "one_way"}&vehicle=sedan&pickup=${encodeURIComponent(trip.from_place)}&drop=${encodeURIComponent(trip.to_place)}`}
             >
-              <img src={tripImageSrc(trip.image_url)} alt={`${trip.from_place} to ${trip.to_place}`} />
+              <TripPhoto src={tripImageSrc(trip.image_url)} alt={`Taxi route from ${trip.from_place} to ${trip.to_place}`} />
               <div>
                 <h3>{trip.from_place} to {trip.to_place}</h3>
                 <p>{trip.km ? `${trip.km} km` : "Road distance on booking"}</p>
@@ -384,7 +398,7 @@ function PopularTrips() {
             </Link>
           ))}
         </div>
-        <p className="fine">Kilometres are the usual road distance from Dharmapuri. The booking page uses the live map distance for the fare.</p>
+        <p className="fine">Kilometres are the usual road distance for each route. The booking page uses the live map distance for the fare.</p>
       </div>
     </section>
   );

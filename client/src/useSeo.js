@@ -15,6 +15,10 @@ function upsertMeta(selector, attributes) {
 
 function upsertLink(rel, href) {
   let tag = document.head.querySelector(`link[rel="${rel}"]`);
+  if (!href) {
+    tag?.remove();
+    return;
+  }
   if (!tag) {
     tag = document.createElement("link");
     tag.setAttribute("rel", rel);
@@ -23,13 +27,15 @@ function upsertLink(rel, href) {
   tag.setAttribute("href", href);
 }
 
+/**
+ * One business JSON-LD block (id "jc-jsonld") lives in index.html and is shared by every page.
+ * A page can replace it with richer data; passing nothing leaves the shared block in place,
+ * so the business markup is never duplicated or dropped.
+ */
 function upsertJsonLd(data) {
+  if (!data) return;
   const id = "jc-jsonld";
   let tag = document.getElementById(id);
-  if (!data) {
-    tag?.remove();
-    return;
-  }
   if (!tag) {
     tag = document.createElement("script");
     tag.id = id;
@@ -45,15 +51,18 @@ export function canonicalUrl(path = "/") {
   return `${SITE}${clean.replace(/\/$/, "")}`;
 }
 
+/** Only verified business details from the site itself. Nothing here is invented. */
 export function taxiServiceJsonLd() {
   return {
     "@context": "https://schema.org",
-    "@type": "TaxiService",
+    "@type": ["LocalBusiness", "TaxiService"],
+    "@id": `${SITE}/#business`,
     name: SITE_NAME,
     alternateName: "Jayalakshmi Cabs",
     url: `${SITE}/`,
     telephone: "+918438905590",
     image: OG_IMAGE,
+    logo: OG_IMAGE,
     slogan: "Your Journey, Our Responsibility",
     description: "One-way taxi, round-trip taxi, outstation taxi and hourly rental from Coimbatore, Tamil Nadu. Sedan and MUV / Ertiga cab service.",
     address: {
@@ -75,8 +84,9 @@ export function taxiServiceJsonLd() {
   };
 }
 
+/** path === null means "no canonical" (used by the 404 page). */
 export function useSeo({ title, description, path = "/", noindex = false, jsonLd = null }) {
-  const canonical = canonicalUrl(path);
+  const canonical = path === null ? "" : canonicalUrl(path);
   const fullTitle = title.includes(SITE_NAME) ? title : `${title} | ${SITE_NAME}`;
 
   useEffect(() => {
@@ -86,7 +96,7 @@ export function useSeo({ title, description, path = "/", noindex = false, jsonLd
     upsertLink("canonical", canonical);
     upsertMeta('meta[property="og:title"]', { property: "og:title", content: fullTitle });
     upsertMeta('meta[property="og:description"]', { property: "og:description", content: description });
-    upsertMeta('meta[property="og:url"]', { property: "og:url", content: canonical });
+    upsertMeta('meta[property="og:url"]', { property: "og:url", content: canonical || `${SITE}/` });
     upsertMeta('meta[property="og:type"]', { property: "og:type", content: "website" });
     upsertMeta('meta[property="og:site_name"]', { property: "og:site_name", content: SITE_NAME });
     upsertMeta('meta[property="og:image"]', { property: "og:image", content: OG_IMAGE });

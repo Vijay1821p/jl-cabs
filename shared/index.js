@@ -1,4 +1,4 @@
-export { TRIP_IMAGES, tripImageSrc, imageForPlace } from "./trip-images.js";
+export { TRIP_IMAGES, tripImageSrc, tripImageWebp, imageForPlace } from "./trip-images.js";
 
 export const COMPANY = {
   name: "Jayalakshmi Cabs & Services",

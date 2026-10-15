@@ -115,7 +115,7 @@ async function geocodePlace(label) {
   );
   const row = pickGeocodeResult(label, list);
   if (!row) {
-    throw new Error(`Could not find "${label}". Add the town name, for example "Dharmapuri bus stand, Tamil Nadu".`);
+    throw new Error(`Could not find "${label}". Add the town name, for example "Gandhipuram bus stand, Coimbatore, Tamil Nadu".`);
   }
   return {
     lat: Number(row.lat),

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { activeOffer, formatPhone, greetingWhatsAppUrl } from "@jc/shared";
 import { useSite } from "../site.jsx";
 
@@ -11,6 +11,37 @@ const links = [
   ["/admin", "Admin"],
 ];
 
+function Logo({ className = "logo", eager = false }) {
+  const { site } = useSite();
+  return (
+    <picture>
+      <source srcSet="/logo.webp" type="image/webp" />
+      <img
+        className={className}
+        src="/logo.png?v=2"
+        alt={`${site.company.name} logo`}
+        width="256"
+        height="256"
+        decoding="async"
+        {...(eager ? { fetchPriority: "high" } : { loading: "lazy" })}
+      />
+    </picture>
+  );
+}
+
+/** Router links like /#services and /#contact change the hash but do not scroll on their own. */
+function ScrollToHash() {
+  const { pathname, hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return undefined;
+    const timer = setTimeout(() => {
+      document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [pathname, hash]);
+  return null;
+}
+
 export default function Layout() {
   const { site } = useSite();
   const company = site.company;
@@ -20,6 +51,7 @@ export default function Layout() {
   const offer = activeOffer(site);
   return (
     <>
+      <ScrollToHash />
       <div className="topbar">
         <div className="wrap topbar-inner">
           <span>Open 24/7</span>
@@ -35,7 +67,7 @@ export default function Layout() {
       <header className="site-header">
         <div className="wrap nav">
           <Link className="brand" to="/" onClick={() => setOpen(false)}>
-            <img className="logo" src="/logo.png?v=2" alt={company.name} />
+            <Logo eager />
             <span><strong>{company.shortName}</strong><span>{company.tagline}</span></span>
           </Link>
           <nav className={open ? "links open" : "links"}>
@@ -51,7 +83,7 @@ export default function Layout() {
       <footer className="footer">
         <div className="wrap foot-grid">
           <div>
-            <img className="logo light" src="/logo.png?v=2" alt={company.name} />
+            <Logo className="logo light" />
             <strong>{company.name}</strong>
             <p>{company.tagline}</p>
             <p>{site.pages.footerBlurb}</p>
@@ -59,6 +91,8 @@ export default function Layout() {
           <div>
             <strong>Quick links</strong>
             <p><Link to="/book">Book a cab</Link></p>
+            <p><Link to="/#services">Services</Link></p>
+            <p><Link to="/#contact">Contact</Link></p>
             <p><Link to="/track">Track booking</Link></p>
             <p><Link to="/tariff">Tariff</Link></p>
             <p><Link to="/#routes">Popular routes</Link></p>

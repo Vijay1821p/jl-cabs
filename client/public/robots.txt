@@ -4,5 +4,6 @@ Disallow: /admin
 Disallow: /payment
 Disallow: /success
 Disallow: /invoice
+Disallow: /api/
 
 Sitemap: https://jlcabs.com/sitemap.xml
