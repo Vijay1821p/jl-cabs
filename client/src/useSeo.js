@@ -80,7 +80,7 @@ export function taxiServiceJsonLd() {
       { "@type": "State", name: "Kerala" },
       { "@type": "State", name: "Andhra Pradesh" },
     ],
-    sameAs: ["https://www.instagram.com/layalakhmi_cabs"],
+    sameAs: ["https://www.instagram.com/Jayalakshmi_cabs"],
   };
 }
 

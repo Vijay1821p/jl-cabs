@@ -26,6 +26,12 @@
   ],
   "redirects": [
     {
+      "source": "/",
+      "has": [{ "type": "host", "value": "www.jlcabs.com" }],
+      "destination": "https://jlcabs.com/",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
       "has": [{ "type": "host", "value": "www.jlcabs.com" }],
       "destination": "https://jlcabs.com/:path*",
