@@ -114,6 +114,9 @@ export default function Book() {
   const [errors, setErrors] = useState({});
   const [quote, setQuote] = useState(null);
   const leadKey = useRef("");
+  useEffect(() => {
+    trackPixel("ViewContent", { content_name: "booking_form", content_type: "product_group" });
+  }, []);
   const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState("");
   const [mapMode, setMapMode] = useState(null);

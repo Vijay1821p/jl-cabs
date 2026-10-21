@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { trackPixel } from "../metaPixel.js";
 import { loadGooglePlaces } from "../googleMaps.js";
 import {
   appendDistrictFromName,
@@ -240,6 +241,7 @@ export default function MapPick({ open, mode, onPick, onClose }) {
     map.panTo(position);
     map.setZoom(16);
     pickRef.current(field, address, point || { address, lat, lng });
+    trackPixel("FindLocation", { content_name: field });
     setHint("Place pinned.");
     closeRef.current();
   }

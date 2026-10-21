@@ -4,6 +4,7 @@ import {
   parseDistrictFromAddress,
   pointWithDistrict,
 } from "../placeAddress.js";
+import { trackPixel } from "../metaPixel.js";
 import { pointAfterAddressEdit } from "../placePoint.js";
 
 function predictionText(prediction, field) {
@@ -98,6 +99,7 @@ export default function AddressAutocomplete({ label, value, point, onChange, pla
         : null;
       const address = nextPoint?.address || fallback;
       publish(address, nextPoint);
+      if (nextPoint) trackPixel("FindLocation", { content_name: label });
     } catch {
       sessionRef.current = null;
       publish(fallback, null);

@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { CHARGES, LOCAL_PACKAGES, ONE_WAY_SLABS, OUTSTATION_PACKAGES, TARIFF_TERMS, VEHICLES, inr, listedVehicles, requestVehicleWhatsAppUrl } from "@jc/shared";
+import { trackPixel } from "../metaPixel.js";
 import { useSite } from "../site.jsx";
 import { useTitle } from "../useTitle.js";
 
@@ -10,6 +12,9 @@ export default function Tariff() {
     { path: "/tariff" },
   );
   const { site } = useSite();
+  useEffect(() => {
+    trackPixel("ViewContent", { content_name: "tariff", content_type: "product_group" });
+  }, []);
   const vehicles = listedVehicles(site.vehicles || VEHICLES);
   const requestWa = requestVehicleWhatsAppUrl(site.company);
   const charges = site.charges || CHARGES;
