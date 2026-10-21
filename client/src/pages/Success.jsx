@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { invoiceWhatsAppUrl } from "@jc/shared";
 import { api } from "../api.js";
 import { InvoiceBody, downloadInvoicePdf } from "./Invoice.jsx";
+import { trackPixelOnce } from "../metaPixel.js";
 import { useSite } from "../site.jsx";
 import { useTitle } from "../useTitle.js";
 
@@ -32,7 +33,13 @@ export default function Success() {
       return;
     }
     api(`/api/bookings/${id}?mobile=${mobile}`)
-      .then((data) => setBooking(data.booking))
+      .then((data) => {
+        setBooking(data.booking);
+        const paid = Number(data.booking?.amount_paid) || 0;
+        if (paid > 0) {
+          trackPixelOnce(`purchase_${data.booking.booking_id}`, "Purchase", { value: paid, currency: "INR", content_name: data.booking.trip_type }, { eventID: data.booking.booking_id });
+        }
+      })
       .catch((err) => setError(err.message));
   }, [params]);
 

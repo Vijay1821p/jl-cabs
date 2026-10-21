@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { BOOK_TRIPS, CHARGES, LOCAL_PACKAGES, OUTSTATION_PACKAGES, TARIFF_TERMS, VEHICLES, amountDueNow, balanceDue, hillStationChargeAmount, inr, isNightStart, listedVehicles, normalizeTime, normalizeVehicle, packageClass, requestVehicleWhatsAppUrl, tripTouchesHillStation, withHillStationCharge, withNightCharge } from "@jc/shared";
 import { api } from "../api.js";
@@ -7,6 +7,7 @@ import AddressAutocomplete from "../components/AddressAutocomplete.jsx";
 import MapPick from "../components/MapPick.jsx";
 import OfferBanner from "../components/OfferBanner.jsx";
 import { hasExactPoint } from "../placePoint.js";
+import { trackPixel } from "../metaPixel.js";
 import { readSearchDraft } from "../searchDraft.js";
 import { useSite } from "../site.jsx";
 import { useTitle } from "../useTitle.js";
@@ -112,6 +113,7 @@ export default function Book() {
   }, [search]);
   const [errors, setErrors] = useState({});
   const [quote, setQuote] = useState(null);
+  const leadKey = useRef("");
   const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState("");
   const [mapMode, setMapMode] = useState(null);
@@ -208,7 +210,16 @@ export default function Book() {
         });
       })()
         .then((data) => {
-          if (!cancelled && data) setQuote(data);
+          if (!cancelled && data) {
+            setQuote(data);
+            if (data.fare) {
+              const key = `${form.pickup}|${form.drop_location}|${form.vehicle_type}|${fareType}|${data.fare}`;
+              if (leadKey.current !== key) {
+                leadKey.current = key;
+                trackPixel("Lead", { value: Number(data.fare), currency: "INR", content_name: fareType, content_category: normalizeVehicle(form.vehicle_type) });
+              }
+            }
+          }
         })
         .catch((error) => {
           if (!cancelled) {
@@ -249,6 +260,7 @@ export default function Book() {
       return;
     }
     if (!validate()) return;
+    trackPixel("InitiateCheckout", { value: Number(shown?.fare) || 0, currency: "INR", content_name: fareType, content_category: normalizeVehicle(form.vehicle_type) });
     sessionStorage.setItem("jc_draft", JSON.stringify({
       ...form,
       trip_type: fareType,

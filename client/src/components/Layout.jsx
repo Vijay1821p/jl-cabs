@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { activeOffer, formatPhone, greetingWhatsAppUrl } from "@jc/shared";
+import { trackPixel } from "../metaPixel.js";
 import { useSite } from "../site.jsx";
 
 const links = [
@@ -56,6 +57,21 @@ function PixelPageViews() {
   return null;
 }
 
+/** Any tap on a call (tel:) or WhatsApp link counts as a Contact event. */
+function PixelContactClicks() {
+  useEffect(() => {
+    function onClick(event) {
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      const href = link?.getAttribute("href") || "";
+      if (href.startsWith("tel:")) trackPixel("Contact", { content_name: "call" });
+      else if (/^https:\/\/(wa\.me|api\.whatsapp\.com)\//.test(href)) trackPixel("Contact", { content_name: "whatsapp" });
+    }
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+  return null;
+}
+
 export default function Layout() {
   const { site } = useSite();
   const company = site.company;
@@ -67,6 +83,7 @@ export default function Layout() {
     <>
       <ScrollToHash />
       <PixelPageViews />
+      <PixelContactClicks />
       <div className="topbar">
         <div className="wrap topbar-inner">
           <span>Open 24/7</span>
