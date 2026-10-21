@@ -21,6 +21,7 @@ export default function Admin() {
   const { setSite } = useSite();
   const [rates, setRates] = useState(defaultSite());
   const [savedNote, setSavedNote] = useState("");
+  const [popup, setPopup] = useState("");
 
   async function loadBookings(activeToken, q = query) {
     setLoading(true);
@@ -68,10 +69,17 @@ export default function Admin() {
       setRates(data);
       setSite(data);
       setSavedNote("Saved. Phone, address, rates and page text now show on the website.");
+      setPopup("Successfully changed");
     } catch (err) {
       setError(err.message);
     }
   }
+
+  useEffect(() => {
+    if (!popup) return undefined;
+    const timer = setTimeout(() => setPopup(""), 3500);
+    return () => clearTimeout(timer);
+  }, [popup]);
 
   useEffect(() => {
     if (!token) return undefined;
@@ -165,6 +173,16 @@ export default function Admin() {
         </div>
         {error && <p className="error">{error}</p>}
         {savedNote && <p className="muted">{savedNote}</p>}
+        {popup && (
+          <div className="popup-backdrop" role="presentation" onClick={() => setPopup("")}>
+            <div className="popup-box" role="alertdialog" aria-live="assertive" aria-label={popup} onClick={(e) => e.stopPropagation()}>
+              <div className="popup-tick" aria-hidden="true">✓</div>
+              <h2>{popup}</h2>
+              <p>The website now shows your changes.</p>
+              <button type="button" className="btn" autoFocus onClick={() => setPopup("")}>OK</button>
+            </div>
+          </div>
+        )}
 
         {tab === "contact" && (
           <form className="card" style={{ display: "grid", gap: 14, marginTop: 16, maxWidth: 640 }} onSubmit={saveSiteEdits}>

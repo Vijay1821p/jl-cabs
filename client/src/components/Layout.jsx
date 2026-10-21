@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { activeOffer, formatPhone, greetingWhatsAppUrl } from "@jc/shared";
 import { useSite } from "../site.jsx";
@@ -42,6 +42,20 @@ function ScrollToHash() {
   return null;
 }
 
+/** The Meta Pixel in index.html tracks the first page load; this tracks later in-app page changes. */
+function PixelPageViews() {
+  const { pathname } = useLocation();
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (typeof window.fbq === "function" && !pathname.startsWith("/admin")) window.fbq("track", "PageView");
+  }, [pathname]);
+  return null;
+}
+
 export default function Layout() {
   const { site } = useSite();
   const company = site.company;
@@ -52,6 +66,7 @@ export default function Layout() {
   return (
     <>
       <ScrollToHash />
+      <PixelPageViews />
       <div className="topbar">
         <div className="wrap topbar-inner">
           <span>Open 24/7</span>

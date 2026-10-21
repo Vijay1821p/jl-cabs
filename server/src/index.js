@@ -9,7 +9,7 @@ import { z, ZodError } from "zod";
 import { amountDueNow, computeFare, listedDropFare, mergeSite, normalizeTime, normalizeVehicle, popularRouteKm, tripById, vehicleById } from "@jc/shared";
 import { initDb, one, query } from "./db.js";
 import { roadDistanceKm } from "./distance.js";
-import { getSite, initSite, saveSite } from "./site.js";
+import { currentSite, initSite, saveSite, siteVersion } from "./site.js";
 
 const port = Number(process.env.PORT) || 3001;
 const adminPassword = process.env.ADMIN_PASSWORD || "";
@@ -188,7 +188,7 @@ async function priceTrip(input) {
     pickup_lng: input.pickup_lng,
     drop_lat: input.drop_lat,
     drop_lng: input.drop_lng,
-    site: getSite(),
+    site: await currentSite(),
   });
   if (!fare.total) {
     const error = new Error("Choose the trip and vehicle so the fare can be calculated.");
@@ -248,14 +248,22 @@ app.get("/api/config", (_req, res) => {
   res.json({ razorpay: Boolean(razorpayKey && razorpaySecret), keyId: razorpayKey || null });
 });
 
-app.get("/api/site", (_req, res) => {
-  res.json(getSite());
+app.get("/api/site", async (_req, res, next) => {
+  try {
+    const site = await currentSite();
+    res.set("Cache-Control", "no-store");
+    res.json({ ...site, _version: siteVersion() });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.put("/api/admin/site", requireAdmin, async (req, res, next) => {
   try {
-    const site = await saveSite(mergeSite(req.body || {}));
-    res.json(site);
+    const { _version, ...body } = req.body || {};
+    const site = await saveSite(mergeSite(body), _version);
+    res.set("Cache-Control", "no-store");
+    res.json({ ...site, _version: siteVersion() });
   } catch (error) {
     next(error);
   }

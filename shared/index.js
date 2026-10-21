@@ -172,7 +172,7 @@ export function defaultSite() {
       termsIntro: "A booking request is confirmed only after we call or message you with the driver details.\n\nTo hold a booking you pay 25% online now, or you can pay the full fare online. The remaining amount after a 25% advance is paid later.",
       luggage: "One medium bag per passenger is included. Extra luggage is Rs. 300. Pets need a washing charge of Rs. 400 for Sedan and Rs. 500 for MUV. Tell us at booking if you have extra bags or a pet.",
       refund: "Cancel 12 hours or more before pickup: the full online payment is refunded.\nCancel between 4 and 12 hours before pickup: half of the online payment is refunded.\nCancel under 4 hours before pickup, or if you do not arrive: the online payment is not refunded.\nIf we cancel the trip, the full online payment is refunded to the original UPI, card or bank account within 5 to 7 working days.",
-      privacy: "We store your name, mobile number, pickup, drop, trip time and payment status so we can send the cab and keep the booking record.\n\nCard numbers and UPI PINs are handled by Razorpay. We do not see them. We do not sell customer details.",
+      privacy: "We store your name, mobile number, pickup, drop, trip time and payment status so we can send the cab and keep the booking record.\n\nCard numbers and UPI PINs are handled by Razorpay. We do not see them. We do not sell customer details.\n\nThis website uses the Meta (Facebook) Pixel to measure visits and advertising. It may set cookies and send page-view information to Meta.",
     },
     offers: [],
   };
